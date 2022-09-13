@@ -3,7 +3,8 @@ import java.util.Scanner;
 public class LoveLetterRunner{
     public static void main(String[] args) {
         LoveLetterGraphic graphicWindow = new LoveLetterGraphic("LoveLetter");
-
+        //change
+        System.out.println("there has been a change");
 
 
 
