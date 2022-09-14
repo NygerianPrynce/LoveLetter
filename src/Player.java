@@ -8,7 +8,16 @@ public class Player {
         player.add(3,1);
         player.add(4,0);
         player.add(5,null);
+        player.add(6,null);
         return player;
+        //6 is the "player number - essentially fake - what is put on the screen"
+    }
+    public ArrayList<Integer> addPlayerNumber(int number){
+        player.set(6,number);
+        return player;
+    }
+    public int getPlayerNumber(){
+        return player.get(6);
     }
     public ArrayList<Integer> refreshPlayer(){
         player.set(0,null);

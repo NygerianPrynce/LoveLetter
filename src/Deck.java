@@ -3,7 +3,7 @@ public class Deck{
     ArrayList<Integer> deck = new ArrayList<Integer>();
     public ArrayList<Integer> makeDeck(){
         deck.clear();
-        /*deck.add(0);
+        deck.add(0);
         deck.add(0);
         deck.add(1);
         deck.add(1);
@@ -19,7 +19,7 @@ public class Deck{
         deck.add(4); 
         deck.add(5);
         deck.add(5);
-        deck.add(6);*/
+        deck.add(6);
         deck.add(6);
         deck.add(7);
         deck.add(8);
