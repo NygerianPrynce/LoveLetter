@@ -1,7 +1,8 @@
 import java.util.*;
 public class Player {
     ArrayList<Integer> player = new ArrayList<Integer>(2);
-    public ArrayList<Integer> makePlayer(){
+    ArrayList<Integer> discardPile = new ArrayList<Integer>(2);
+    public Player(){
         player.add(0,null);
         player.add(1,null);
         player.add(2,0);
@@ -9,7 +10,6 @@ public class Player {
         player.add(4,0);
         player.add(5,null);
         player.add(6,null);
-        return player;
         //6 is the "player number - essentially fake - what is put on the screen"
     }
     public ArrayList<Integer> addPlayerNumber(int number){
@@ -72,6 +72,7 @@ public class Player {
         return player;
     }
     public ArrayList<Integer> discardCard(int position){
+        discardPile.add(getAnyCard(position));
         player.set(position, null);
         player.set(4,getDiscardedStrength()+1);
         return player;
