@@ -10,16 +10,36 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseEvent;
 import java.lang.Math;
-public class LoveLetterPanel extends JPanel implements MouseListener{
+public class LoveLetterPanel extends JPanel implements MouseListener, KeyListener{
     private BufferedImage Baron, Chancellor, Countess, Guard, Handmaid, King, Priest, Prince, Princess, Spy, ReferenceCard, CardBack, Player1Icon, Player2Icon, Player3Icon, Token;
-    public Integer choice = null;
-    public Integer pChoice = null;
-    public Player p1 = new Player();
-    public Player p2 = new Player();
-    public Player p3 = new Player();
-    public BufferedImage[] cardFaces = new BufferedImage[10];
-    public BufferedImage[] playerIcons = new BufferedImage[3];
-    ArrayList<Integer> playerSpots = new ArrayList<Integer>(3);
+    public Integer choice;
+    public Player pChoice;
+    public Player p1;
+    public Player p2;
+    public Player p3;
+    public BufferedImage winner;
+    public BufferedImage[] cardFaces;
+    public BufferedImage[] playerIcons;
+    public ArrayList<Player> playerSpots;
+    public ArrayList<Player> playerSpotsPerma;
+    public int switcharoo = 0;
+    public Deck jit;
+    public boolean protect1;
+    public boolean protect2;
+    public boolean protect3;
+    public boolean roundDone;
+    public Integer state;
+    public ArrayList<Player> spy;
+    public Player mainP;
+    public Player otherP1;
+    public Player otherP2;
+    public Integer action;
+    public Integer actionG;
+    public Integer bam;
+    public Boolean next;
+    public Integer pressed; 
+    public Integer specialChoice;
+    public Integer kInput;
     public LoveLetterPanel(){
         try{
             Baron = ImageIO.read(LoveLetterPanel.class.getResource("/images/Baron.png"));
@@ -42,6 +62,32 @@ public class LoveLetterPanel extends JPanel implements MouseListener{
             System.out.println("Exception error");
             return;
         }
+        //Initializes important stuff 4 the player
+        p1 = new Player(0);
+        p2 = new Player(1);
+        p3 = new Player(2);
+        ArrayList<Player> random = new ArrayList<Player>();
+        random.add(p1);
+        random.add(p2);
+        random.add(p3);
+        playerSpots = new ArrayList<Player>(3);
+        playerSpotsPerma = new ArrayList<Player>(3);
+        int r = (int)(Math.random()*(3));
+        Player z = random.remove(r);
+        playerSpots.add(z);
+        playerSpotsPerma.add(z);
+        r = (int)(Math.random()*(2));
+        Player x = random.remove(r);
+        playerSpots.add(x);
+        playerSpotsPerma.add(x);
+        Player y = random.remove(0);
+        playerSpots.add(y);
+        playerSpotsPerma.add(x);
+        //sets up playerSpots 
+        pressed = 0;
+        //sets up graphic placements in the array for the cardfaces and icons
+        cardFaces = new BufferedImage[10];
+        playerIcons = new BufferedImage[3];
         cardFaces[0] = Spy;
         cardFaces[1] = Guard;
         cardFaces[2] = Priest;
@@ -55,8 +101,72 @@ public class LoveLetterPanel extends JPanel implements MouseListener{
         playerIcons[0] = Player1Icon;
         playerIcons[1] = Player2Icon;
         playerIcons[2] = Player3Icon;
+        //Sets choice options to null for clicking 
+        choice = 123;
+        pChoice = null;
+        bam = 0;
+        next = false;
+        //mouselistener adder
         addMouseListener(this);
+        addKeyListener(this);
+        //makes new deck
+        jit = new Deck();
+        jit.makeDeck();
+        jit.shuffle();
+        jit.burnCard();
+        printDeck(jit);
+        initialdeal(p1, p2, p3, jit);
+        System.out.println("initial deal done");
+        System.out.println("full hand - p1");
+        System.out.println(p1.getFullHand());
+        System.out.println("full hand - p2");
+        System.out.println(p2.getFullHand());
+        System.out.println("full hand - p3");
+        System.out.println(p3.getFullHand());
+        //states for the drawer 
+        mainP = playerSpots.get(0);
+        otherP1 = playerSpots.get(1);
+        otherP2 = playerSpots.get(2);
+        //sets up for drawer
+        //dealDependent(mainP, jit);
+        //System.out.println("full hand - mainP");
+        //System.out.println(mainP.getFullHand());
+        //sets up rounDone to false
+        roundDone = false;   
+        //sets up stuff for spy
+        spy = new ArrayList<Player>();
+        //sets up stuff for handmaid
+        protect1 = false;
+        protect2 = false;
+        protect3 = false;
+        state = 21;
+        repaint();
+        action = 0;
+        actionG = 0;
+        specialChoice = -1;
     }
+    public void keyPressed(KeyEvent e){}
+    public void keyReleased(KeyEvent e){}
+    public void keyTyped(KeyEvent e){
+        kInput = e.getKeyChar() -'0';
+        System.out.println(kInput);
+        if(actionG == 9 && action == 9 && choice != -1){
+            System.out.println("waiting for guess");
+            if(kInput == pChoice.getAvailableCard()){
+                guard(pChoice);
+                state = 2;
+                repaint();
+                System.out.println("guessed correctly");
+            } else{
+                state = 3;
+                repaint();
+            }
+            action = 0;
+            actionG = 0;
+        }
+
+    }
+
     public void mousePressed(MouseEvent e){}
     public void mouseReleased(MouseEvent e){}
     public void mouseEntered(MouseEvent e){}
@@ -70,672 +180,736 @@ public class LoveLetterPanel extends JPanel implements MouseListener{
         int[][] playerIconSizes = {{getWidth()/2 - getWidth()/46, (getHeight()/2 + getHeight()/12), getWidth()/23, getHeight()/15},
                                      {getWidth()/15, getHeight()/15, getWidth()/6, getHeight()/4},
                                      {(getWidth() - getWidth()/9 - getWidth()/8), getHeight()/15, getWidth()/6, getHeight()/4}};
+        int[] nextButtonSize = {getWidth() - (getWidth()/4+getWidth()/6), (getHeight()/2) - (getHeight()/5+getHeight()/15)/2 - (getHeight()/15) + getHeight()/12, getWidth()/15, getHeight()/10};
         System.out.println("loc is ("+x+","+y+")");
         if(e.getButton() == e.BUTTON1){
             if(x >= playableCardSizes[0][0] && y>= playableCardSizes[0][1] && x<= playableCardSizes[0][0] + playableCardSizes[0][2] && y<= playableCardSizes[0][1] + playableCardSizes[0][3]){
-                choice = 0;
+                choice = 0; 
+                if(mainP.getPlayerActivity() == 1 && playerSpots.get(0) == mainP && roundDone != true){
+                    System.out.print(mainP.getPlayerNumber() + " is playing");
+                    //protection stufff for players
+                    //Countess - 8 /* 
+                    if(mainP.getFullHand().contains("8") && (mainP.getFullHand().contains("7") || mainP.getFullHand().contains("5"))){
+                        //replace input with button click or key press
+                        //ask stroud how to keep it in the same if
+                        if(mainP.getAnyCard(choice) == 8){
+                            mainP.discardCard(mainP.findCountess());
+                            state = 10;
+                            repaint();
+                            System.out.println("Countess has been discarded");
+                            System.out.println("countess has been played FORCEFULLY - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        } else{
+                        }
+                    } else{
+                        //spy
+                        if(mainP.getAnyCard(choice) == 0 && action == 0 && actionG == 0){
+                            spy(spy, mainP, choice);
+                            state = 10;
+                            repaint();
+                            System.out.println("spy has been played - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        } 
+                        //guard - 1 - deal with after getting everything elses mouse clicks right
+                        
+                        else if(mainP.getAnyCard(choice) == 1 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press 
+                            //needs a keyboard input - ADD
+                            mainP.discardCard(choice);
+                            state = 10;
+                            repaint();
+                            action = 9;
+                        } 
+                        
+                        //priest - 2
+                        else if(mainP.getAnyCard(choice) == 2 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press
+                            if (mustPlay(otherP1, otherP2)){
+                                mainP.discardCard(choice);
+                                state = 10;
+                                repaint();
+                                System.out.println("priest has been played - in mouseclick");
+                                System.out.println(mainP.getPlayerNumber() + "turn done");
+                                System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                            } 
+                            else {
+                                action = 2;
+                            } 
+                        }
+                        //baron - 3 - DONE w loop
+                        else if(mainP.getAnyCard(choice) == 3 && action == 0&& actionG == 0){
+                            //replace action with button click or key press
+                            if (mustPlay(otherP1, otherP2)){
+                                mainP.discardCard(choice);
+                                state = 10;
+                                repaint();
+                                System.out.println("baron has been played - in mouseclick");
+                                System.out.println(mainP.getPlayerNumber() + "turn done");
+                                System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                            } else {
+                                action = 3;
+                            }
+                        } 
+                        //handmaid - 4 - DONE w while loop
+                        else if(mainP.getAnyCard(choice) == 4 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press
+                            handmaid(mainP, protect1, choice);
+                            state = 10;
+                            repaint();
+                            System.out.println("handmaid has been played - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        } 
+                        //prince - 5 - DONE w loop
+                        else if(mainP.getAnyCard(choice) == 5 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press
+                                action = 4;
+                        } 
+                        //chancellor - 6 - DONE w loop
+                        else if(mainP.getAnyCard(choice) == 6 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press
+                            mainP.discardCard(choice);
+                            bam = chancellor1(mainP, choice, jit);
+                            if(bam == 0){
+                                state = 11;
+                                repaint();
+                            } else{
+                                state = 12;
+                                repaint();
+                            }
+                            action = 5;  
+                            System.out.println("chancellor clicked"); 
+                            specialChoice = choice;
+                            choice = -1;
+                        } 
+                        //king - 7 - done w loop
+                        else if(mainP.getAnyCard(choice) == 7 && action == 0 && actionG == 0){
+                            //replace input with button click or key press
+                            if (mustPlay(otherP1, otherP2)){
+                                mainP.discardCard(choice);
+                                state = 10;
+                                repaint();
+                                System.out.println("king has been played - in mouseclick");
+                                System.out.println(mainP.getPlayerNumber() + "turn done");
+                                System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                            } else {
+                                action = 6;
+                            }
+                        } 
+                        // countess in case
+                        else if(mainP.getAnyCard(choice) == 8 && action == 0 && actionG == 0){
+                            mainP.discardCard(choice);
+                            state = 10;
+                            repaint();
+                            System.out.println("Countess has been played - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        }
+                        //princess - 9 - DOne
+                        else if(mainP.getAnyCard(choice) == 9 && action == 0 && actionG == 0){
+                            //replace input with button click or key press
+                            princess(mainP, choice);
+                            mainP.discardCard(choice);
+                            state = 7;
+                            repaint();
+                            System.out.println("Princess has been played - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        } 
+                        else if(action == 5 && choice != -1){
+                            chancellor2(mainP, choice, jit, bam);
+                            if(bam == 0){
+                                state = 5;
+                                repaint();
+                            } else{
+                                state = 6;
+                                repaint();
+                            }
+                            action = 0;
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            
+                            System.out.println("Chancellor has been played - in mouseclick");
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        }
+                    }
+                }
+        
+                
             }
             else if(x >= playableCardSizes[1][0] && y>= playableCardSizes[1][1] && x<= playableCardSizes[1][0] + playableCardSizes[1][2] && y<= playableCardSizes[1][1] + playableCardSizes[1][3]){
                 choice = 1;
+                if(mainP.getPlayerActivity() == 1 && playerSpots.get(0) == mainP && roundDone != true){
+                    System.out.print(mainP.getPlayerNumber() + " is playing");
+                    //protection stufff for players
+                    //Countess - 8 /* 
+                    if(mainP.getFullHand().contains("8") && (mainP.getFullHand().contains("7") || mainP.getFullHand().contains("5"))){
+                        //replace input with button click or key press
+                        //ask stroud how to keep it in the same if
+                        if(mainP.getAnyCard(choice) == 8){
+                            mainP.discardCard(mainP.findCountess());
+                            state = 10;
+                            repaint();
+                            System.out.println("Countess has been discarded");
+                            System.out.println("countess has been played FORCEFULLY - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        } else{
+                        }
+                    } else{
+                        //spy
+                        if(mainP.getAnyCard(choice) == 0 && action == 0 && actionG == 0){
+                            spy(spy, mainP, choice);
+                            state = 10;
+                            repaint();
+                            System.out.println("spy has been played - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        } 
+                        //guard - 1 - deal with after getting everything elses mouse clicks right
+                        else if(mainP.getAnyCard(choice) == 1 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press 
+                            //needs a keyboard input - ADD
+                            mainP.discardCard(choice);
+                            state = 10;
+                            repaint();
+                            action = 9;
+                        } 
+                        //priest - 2
+                        else if(mainP.getAnyCard(choice) == 2 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press
+                            if (mustPlay(otherP1, otherP2)){
+                                mainP.discardCard(choice);
+                                state = 10;
+                                repaint();
+                                System.out.println("priest has been played - in mouseclick");
+                                System.out.println(mainP.getPlayerNumber() + "turn done");
+                                System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                            } 
+                            else {
+                                action = 2;
+                            } 
+                        }
+                        //baron - 3 - DONE w loop
+                        else if(mainP.getAnyCard(choice) == 3 && action == 0 && actionG == 0){
+                            //replace action with button click or key press
+                            if (mustPlay(otherP1, otherP2)){
+                                mainP.discardCard(choice);
+                                state = 10;
+                                repaint();
+                                System.out.println("baron has been played - in mouseclick");
+                                System.out.println(mainP.getPlayerNumber() + "turn done");
+                                
+                                System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                            } else {
+                                action = 3;
+                            }
+                        } 
+                        //handmaid - 4 - DONE w while loop
+                        else if(mainP.getAnyCard(choice) == 4 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press
+                            handmaid(mainP, protect1, choice);
+                            state = 10;
+                            repaint();
+                            System.out.println("handmaid has been played - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        } 
+                        //prince - 5 - DONE w loop
+                        else if(mainP.getAnyCard(choice) == 5 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press
+                            
+                                action = 4;
+                        } 
+                        //chancellor - 6 - DONE w loop
+                        else if(mainP.getAnyCard(choice) == 6 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press
+                            mainP.discardCard(choice);
+                            bam = chancellor1(mainP, choice, jit);
+                            if(bam == 0){
+                                state = 11;
+                                repaint();
+                            } else{
+                                state = 12;
+                                repaint();
+                            }
+                            action = 5;   
+                            System.out.println("chancellor clicked"); 
+                            specialChoice = choice;
+                            choice = -1;
+                        } 
+                        //king - 7 - done w loop
+                        else if(mainP.getAnyCard(choice) == 7 && action == 0 && actionG == 0){
+                            //replace input with button click or key press
+                            if (mustPlay(otherP1, otherP2)){
+                                mainP.discardCard(choice);
+                                state = 10;
+                                repaint();
+                                System.out.println("king has been played - in mouseclick");
+                                System.out.println(mainP.getPlayerNumber() + "turn done");
+                                
+                                System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                            } else {
+                                action = 6;
+                            }
+                        } 
+                        // countess in case
+                        else if(mainP.getAnyCard(choice) == 8 && action == 0 && actionG == 0){
+                            mainP.discardCard(choice);
+                            state = 10;
+                            repaint();
+                            System.out.println("Countess has been played - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        }
+                        //princess - 9 - DOne
+                        else if(mainP.getAnyCard(choice) == 9 && action == 0 && actionG == 0){
+                            //replace input with button click or key press
+                            princess(mainP, choice);
+                            mainP.discardCard(choice);
+                            state = 7;
+                            repaint();
+                            System.out.println("Princess has been played - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        } 
+                        else if(action == 5 && choice != -1){
+                            chancellor2(mainP, choice, jit, bam);
+                            if(bam == 0){
+                                state = 5;
+                                repaint();
+                            } else{
+                                state = 6;
+                                repaint();
+                            }
+                            action = 0;
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            
+                            System.out.println("Chancellor has been played - in mouseclick");
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        }
+                    }
+                }
+        
+                
+                
             }
             else if(x >= playableCardSizes[2][0] && y>= playableCardSizes[2][1] && x<= playableCardSizes[2][0] + playableCardSizes[2][2] && y<= playableCardSizes[2][1] + playableCardSizes[2][3]){
                 choice = 2;
+                if(mainP.getPlayerActivity() == 1 && playerSpots.get(0) == mainP && roundDone != true){
+                    System.out.print(mainP.getPlayerNumber() + " is playing");
+                    //protection stufff for players
+                    //Countess - 8 /* 
+                    if(mainP.getFullHand().contains("8") && (mainP.getFullHand().contains("7") || mainP.getFullHand().contains("5"))){
+                        //replace input with button click or key press
+                        //ask stroud how to keep it in the same if
+                        if(mainP.getAnyCard(choice) == 8){
+                            mainP.discardCard(mainP.findCountess());
+                            state = 10;
+                            repaint();
+                            System.out.println("Countess has been discarded");
+                            System.out.println("countess has been played FORCEFULLY - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        } else{
+                        }
+                    } else{
+                        //spy
+                        if(mainP.getAnyCard(choice) == 0 && action == 0 && actionG == 0){
+                            spy(spy, mainP, choice);
+                            state = 10;
+                            repaint();
+                            System.out.println("spy has been played - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        } 
+                        //guard - 1 - deal with after getting everything elses mouse clicks right
+                        else if(mainP.getAnyCard(choice) == 1 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press 
+                            //needs a keyboard input - ADD
+                            mainP.discardCard(choice);
+                            state = 10;
+                            repaint();
+                            action = 9;
+                        } 
+                        //priest - 2
+                        else if(mainP.getAnyCard(choice) == 2 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press
+                            if (mustPlay(otherP1, otherP2)){
+                                mainP.discardCard(choice);
+                                state = 10;
+                                repaint();
+                                System.out.println("priest has been played - in mouseclick");
+                                System.out.println(mainP.getPlayerNumber() + "turn done");
+                                
+                                System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                            } 
+                            else {
+                                action = 2;
+                            } 
+                        }
+                        //baron - 3 - DONE w loop
+                        else if(mainP.getAnyCard(choice) == 3 && action == 0 && actionG == 0){
+                            //replace action with button click or key press
+                            if (mustPlay(otherP1, otherP2)){
+                                mainP.discardCard(choice);
+                                state = 10;
+                                repaint();
+                                System.out.println("baron has been played - in mouseclick");
+                                System.out.println(mainP.getPlayerNumber() + "turn done");
+                                
+                                System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                            } else {
+                                action = 3;
+                            }
+                        } 
+                        //handmaid - 4 - DONE w while loop
+                        else if(mainP.getAnyCard(choice) == 4 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press
+                            handmaid(mainP, protect1, choice);
+                            state = 10;
+                            repaint();
+                            System.out.println("handmaid has been played - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        } 
+                        //prince - 5 - DONE w loop
+                        else if(mainP.getAnyCard(choice) == 5 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press
+                            action = 4;
+                        } 
+                        //chancellor - 6 - DONE w loop
+                        else if(mainP.getAnyCard(choice) == 6 && action == 0 && actionG == 0){
+                            //replace action and guess with button click or key press
+                            mainP.discardCard(choice);
+                            bam = chancellor1(mainP, choice, jit);
+                            if(bam == 0){
+                                state = 11;
+                                repaint();
+                            } else{
+                                state = 12;
+                                repaint();
+                            }
+                            action = 5;   
+                            System.out.println("chancellor clicked"); 
+                            specialChoice = choice;
+                            choice = -1;
+                        } 
+                        //king - 7 - done w loop
+                        else if(mainP.getAnyCard(choice) == 7 && action == 0 && actionG == 0){
+                            //replace input with button click or key press
+                            if (mustPlay(otherP1, otherP2)){
+                                mainP.discardCard(choice);
+                                state = 10;
+                                repaint();
+                                System.out.println("king has been played - in mouseclick");
+                                System.out.println(mainP.getPlayerNumber() + "turn done");
+                                
+                                System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                            } else {
+                                action = 6;
+                            }
+                        } 
+                        // countess in case
+                        else if(mainP.getAnyCard(choice) == 8 && action == 0 && actionG == 0){
+                            mainP.discardCard(choice);
+                            state = 10;
+                            repaint();
+                            System.out.println("Countess has been played - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        }
+                        //princess - 9 - DOne
+                        else if(mainP.getAnyCard(choice) == 9 && action == 0 && actionG == 0){
+                            //replace input with button click or key press
+                            princess(mainP, choice);
+                            mainP.discardCard(choice);
+                            state = 7;
+                            repaint();
+                            System.out.println("Princess has been played - in mouseclick");
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        } 
+                        else if(action == 5 && choice != -1){
+                            chancellor2(mainP, choice, jit, bam);
+                            if(bam == 0){
+                                state = 5;
+                                repaint();
+                            } else{
+                                state = 6;
+                                repaint();
+                            }
+                            action = 0;
+                            System.out.println(mainP.getPlayerNumber() + "turn done");
+                            
+                            System.out.println("Chancellor has been played - in mouseclick");
+                            System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                        }
+                    }
+                }
+        
+
             }
             //specific sizes for player icons - 0:as if the one playing & 1:left sideline & 2:right sideline
             else if(x >= playerIconSizes[0][0] && y>= playerIconSizes[0][1] && x<= playerIconSizes[0][0] + playerIconSizes[0][2] && y<= playerIconSizes[0][1] + playerIconSizes[0][3]){
                 pChoice = playerSpots.get(0);
+                System.out.println("main player clicked");
+                //ACTION STUFF
+                if(action == 2 && checks(pChoice) && choice != -1){
+                    mainP.discardCard(choice);
+                    state = 13;
+                    repaint();
+                    action = 0;
+                    System.out.println(mainP.getPlayerNumber() + "turn done");
+                    
+                    System.out.println("priest has been played - in mouseclick");
+                    System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                }
+                else if(action == 3 && checks(pChoice) && choice != -1) {
+                    mainP.discardCard(choice);
+                    baron(mainP, pChoice);
+                    //make state for baron
+                    state = 13;
+                    repaint();
+                    action = 0;
+                    System.out.println(mainP.getPlayerNumber() + "turn done");
+                    
+                    System.out.println("Baron has been played - in mouseclick");
+                    System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                }
+                else if(action == 4 && checks(pChoice) && choice != -1){
+                    prince(pChoice, jit);
+                    mainP.discardCard(choice);
+                    //redraws in case the prince switched with himself
+                    System.out.println("Swapped");
+                    action = 0;
+                    System.out.println(mainP.getPlayerNumber() + "turn done");
+                    System.out.println("Prince has been played - in mouseclick");
+                    System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                    state = 14;
+                    repaint();
+                }
+                else if(action == 6 && checks(pChoice) && choice != -1){
+                    mainP.discardCard(choice);
+                    king(mainP, pChoice);
+                    state = 14;
+                    repaint();
+                    action = 0;
+                    System.out.println(mainP.getPlayerNumber() + "turn done");
+                    
+                    System.out.println("King has been played - in mouseclick");
+                    System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                }
+                else if(action == 9 && checks(pChoice) && choice != -1){
+                    actionG = 9;
+                }
+    
             }
             else if(x >= playerIconSizes[1][0] && y>= playerIconSizes[1][1] && x<= playerIconSizes[1][0] + playerIconSizes[1][2] && y<= playerIconSizes[1][1] + playerIconSizes[1][3]){
                 pChoice = playerSpots.get(1);
+                System.out.println("left player clicked");
+                //Action Stuff
+                if(action == 2 && checks(pChoice) && choice != -1){
+                    mainP.discardCard(choice);
+                    state = 13;
+                    repaint();
+                    action = 0;
+                    System.out.println(mainP.getPlayerNumber() + "turn done");
+                    
+                    System.out.println("priest has been played - in mouseclick");
+                    System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                }
+                else if(action == 3 && checks(pChoice) && choice != -1) {
+                    mainP.discardCard(choice);
+                    baron(mainP, pChoice);
+                    //make state for baron
+                    state = 13;
+                    repaint();
+                    action = 0;
+                    System.out.println(mainP.getPlayerNumber() + "turn done");
+                    
+                    System.out.println("Baron has been played - in mouseclick");
+                    System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                }
+                else if(action == 4 && checks(pChoice) && choice != -1){
+                    prince(pChoice, jit);
+                    mainP.discardCard(choice);
+                    //redraws in case the prince switched with himself
+                    System.out.println("Swapped");
+                    action = 0;
+                    System.out.println(mainP.getPlayerNumber() + "turn done");
+                    System.out.println("Prince has been played - in mouseclick");
+                    System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                    state = 14;
+                    repaint();
+                }
+                else if(action == 6 && checks(pChoice) && choice != -1){
+                    mainP.discardCard(choice);
+                    king(mainP, pChoice);
+                    state = 14;
+                    repaint();
+                    action = 0;
+                    System.out.println(mainP.getPlayerNumber() + "turn done");
+                    
+                    System.out.println("King has been played - in mouseclick");
+                    System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                }
+                else if(action == 9 && checks(pChoice) && choice != -1){
+                    actionG = 9;
+                }
+    
             }
             else if(x >= playerIconSizes[2][0] && y>= playerIconSizes[2][1] && x<= playerIconSizes[2][0] + playerIconSizes[2][2] && y<= playerIconSizes[2][1] + playerIconSizes[2][3]){
                 pChoice = playerSpots.get(2);
+                System.out.println("right player clicked");
+                    //Action Stuff
+                    if(action == 2 && checks(pChoice) && choice != -1){
+                    mainP.discardCard(choice);
+                    state = 13;
+                    repaint();
+                    action = 0;
+                    System.out.println(mainP.getPlayerNumber() + "turn done");
+                    
+                    System.out.println("priest has been played - in mouseclick");
+                    System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                }
+                else if(action == 3 && checks(pChoice) && choice != -1) {
+                    mainP.discardCard(choice);
+                    baron(mainP, pChoice);
+                    //make state for baron
+                    state = 13;
+                    repaint();
+                    action = 0;
+                    System.out.println(mainP.getPlayerNumber() + "turn done");
+                    
+                    System.out.println("Baron has been played - in mouseclick");
+                    System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                }
+                else if(action == 4 && checks(pChoice) && choice != -1){
+                    prince(pChoice, jit);
+                    mainP.discardCard(choice);
+                    //redraws in case the prince switched with himself
+                    System.out.println("Swapped");
+                    action = 0;
+                    System.out.println(mainP.getPlayerNumber() + "turn done");
+                    System.out.println("Prince has been played - in mouseclick");
+                    System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                    state = 14;
+                    repaint();
+                }
+                else if(action == 6 && checks(pChoice) && choice != -1){
+                    mainP.discardCard(choice);
+                    king(mainP, pChoice);
+                    state = 14;
+                    repaint();
+                    action = 0;
+                    System.out.println(mainP.getPlayerNumber() + "turn done");
+                    
+                    System.out.println("King has been played - in mouseclick");
+                    System.out.println("Now it is " + mainP.getPlayerNumber() + " player turn");
+                }
+                else if(action == 9 && checks(pChoice) && choice != -1){
+                    actionG = 9;
+                }
+                
             }
-            repaint();
-        }
-    }
-    public void addNotify(){
-        super.addNotify();
-        requestFocus();
-    }
-    public void paint(Graphics g){   
-        //Initializes important stuff 4 the player
-        ArrayList<Integer> random = new ArrayList<Integer>();
-        random.add(0);
-        random.add(1);
-        random.add(2);
-        int r = (int)(Math.random()*(3));
-        p1.addPlayerNumber(random.remove(r));
-        r = (int)(Math.random()*(2));
-        p2.addPlayerNumber(random.remove(r));
-        p3.addPlayerNumber(random.remove(0));   
-        playerSpots.add(p1.getPlayerNumber());
-        playerSpots.add(p2.getPlayerNumber());
-        playerSpots.add(p3.getPlayerNumber());  
-        //playerIcon switches based on whose playing
-        BufferedImage activePlayerIcon = playerIcons[playerSpots.get(0)];
-        BufferedImage idlePlayerIcon1 = playerIcons[playerSpots.get(1)];
-        BufferedImage idlePlayerIcon2 = playerIcons[playerSpots.get(2)];
-        int tokenCount = 0;
-        //specific sizes for player icons - 0:as if the one playing & 1:left sideline & 2:right sideline
-        int[][] playerIconSizes = {{getWidth()/2 - getWidth()/46, (getHeight()/2 + getHeight()/12), getWidth()/23, getHeight()/15},
-                                   {getWidth()/15, getHeight()/15, getWidth()/6, getHeight()/4},
-                                   {(getWidth() - getWidth()/9 - getWidth()/8), getHeight()/15, getWidth()/6, getHeight()/4}};
-        //specific sizes for stagnant card images - 0:Deck card sizes & 1:left card sizes & 2:right card sizes                        
-        int[][] stagnantCardSizes = {{(getWidth()/2)-(getWidth()/7+getWidth()/50)/2, (getHeight()/2) - (getHeight()/5+getHeight()/15)/2 - (getHeight()/15), getWidth()/7+getWidth()/50, getHeight()/5+getHeight()/15},
-                                     {getWidth()/15, (getHeight()/6+getHeight()/6), getWidth()/7+getWidth()/50, getHeight()/5+getHeight()/15},
-                                     {(getWidth() - getWidth()/9 - getWidth()/8), (getHeight()/6+getHeight()/6), getWidth()/7+getWidth()/50, getHeight()/5+getHeight()/15}};
-        //specific sizes for playable card images - 0:left card sizes & 1:middle card sizes & 2:right card sizes                           
-        int[][] playableCardSizes = {{getWidth()/2-getWidth()/5-getWidth()/82, getHeight()-getHeight()/3,getWidth()/8+getWidth()/50, getHeight()/5+getHeight()/8},
-                                     {getWidth()/2 - getWidth()/16, getHeight()-getHeight()/3, getWidth()/8+getWidth()/50, getHeight()/5+getHeight()/8},
-                                     {getWidth()-getWidth()/6-getWidth()/5-getWidth()/21, getHeight()-getHeight()/3,getWidth()/8+getWidth()/50, getHeight()/5+getHeight()/8}};
-        //specific sizes for the discard piles -0:as if the one playing & 1:left sideline & 2:right sideline
-        int[][] discardPileSizes = {{getWidth()-getWidth()/4, getHeight() - (getHeight()/4 + getHeight()/9), getWidth()/17, getHeight()/13+getHeight()/15},
-                                     {getWidth()/4, (getHeight()/4 - getHeight()/15), getWidth()/17, getHeight()/13+getHeight()/15},
-                                     {getWidth() - (getWidth()/4 + getWidth()/17), (getHeight()/4 - getHeight()/15), getWidth()/17, getHeight()/13+getHeight()/15}};
-        //reference card
-        g.drawImage(ReferenceCard, (getWidth()/2)-(getWidth()/16), getHeight()/90, getWidth()/8, getHeight()/5+getHeight()/15, null);
-        //stagnant cards
-        g.drawImage(CardBack, stagnantCardSizes[0][0], stagnantCardSizes[0][1], stagnantCardSizes[0][2], stagnantCardSizes[0][3], null);
-        g.drawImage(CardBack, stagnantCardSizes[1][0], stagnantCardSizes[1][1], stagnantCardSizes[1][2], stagnantCardSizes[1][3], null);
-        g.drawImage(CardBack, stagnantCardSizes[2][0], stagnantCardSizes[2][1], stagnantCardSizes[2][2], stagnantCardSizes[2][3], null);
-        //player icons
-        g.drawImage(activePlayerIcon, playerIconSizes[0][0], playerIconSizes[0][1], playerIconSizes[0][2], playerIconSizes[0][3], null);
-        g.drawImage(idlePlayerIcon1, playerIconSizes[1][0], playerIconSizes[1][1], playerIconSizes[1][2], playerIconSizes[1][3], null);
-        g.drawImage(idlePlayerIcon2, playerIconSizes[2][0], playerIconSizes[2][1], playerIconSizes[2][2], playerIconSizes[2][3], null);
-        //Card spots
-        g.drawImage(Baron, playableCardSizes[0][0], playableCardSizes[0][1], playableCardSizes[0][2], playableCardSizes[0][3], null);
-        g.drawImage(Baron, playableCardSizes[1][0], playableCardSizes[1][1], playableCardSizes[1][2], playableCardSizes[1][3], null);
-        g.drawImage(Baron, playableCardSizes[2][0], playableCardSizes[2][1], playableCardSizes[2][2], playableCardSizes[2][3], null);
-        //LoveLetter Spot
-        g.setFont(new Font("Serif", Font.ITALIC, 20));
-        g.drawString("Token Count: " + tokenCount, getWidth()/5 - getWidth()/80, getHeight()-(getHeight()/6 + getHeight()/15));
-        g.drawImage(Token, getWidth()/5, getHeight() -getHeight()/5, getWidth()/16, getHeight()/10, null);
-        //discard pile - use length of arraylist to multiply the stuff in a for loop
-        int discardSize = 10;
-        for(int i = 0; i<discardSize; i++){
-            g.drawImage(Baron, discardPileSizes[0][0], discardPileSizes[0][1] + 20*i, discardPileSizes[0][2], discardPileSizes[0][3], null);
-        }
-        for(int i = 0; i<discardSize; i++){
-            g.drawImage(Baron, discardPileSizes[1][0], discardPileSizes[1][1] + 20*i, discardPileSizes[1][2], discardPileSizes[1][3],null);
-        }
-        for(int i = 0; i<discardSize; i++){
-            g.drawImage(Baron, discardPileSizes[2][0], discardPileSizes[2][1] + 20*i, discardPileSizes[2][2], discardPileSizes[2][3],null);
-        }
-        //image covers
-        g.setColor(Color.yellow);
-        g.drawRect(playableCardSizes[0][0], playableCardSizes[0][1], playableCardSizes[0][2], playableCardSizes[0][3]);
-        g.setColor(Color.blue);
-        g.drawRect(playableCardSizes[1][0], playableCardSizes[1][1], playableCardSizes[1][2], playableCardSizes[1][3]);
-        g.setColor(Color.red);
-        g.drawRect(playableCardSizes[2][0], playableCardSizes[2][1], playableCardSizes[2][2], playableCardSizes[2][3]);
-        //open face card for priest
-        //g.drawImage(Baron, (getWidth()/4+getWidth()/10), stagnantCardSizes[0][1] + getHeight()/30, getWidth()/14+getWidth()/50, stagnantCardSizes[0][3] - getWidth()/30, null);
 
-        //runs the entire game
-        
-        while(p1.getLoveLetters()<5 && p2.getLoveLetters()<5 && p3.getLoveLetters()<5){
-            Deck jit = new Deck();
-            jit.makeDeck();
-            jit.shuffle();
-            jit.burnCard();
-            printDeck(jit);
-            initialdeal(p1, p2, p3, jit);
-            boolean protect1 = false;
-            boolean protect2 = false;
-            boolean protect3 = false;
-            Scanner myObj = new Scanner(System.in);
-            boolean roundDone = false;
-            ArrayList<Player> spy = new ArrayList<Player>();
-            System.out.println("initial deal done");
-            System.out.println("full hand - p1");
-            System.out.println(p1.getFullHand());
-            System.out.println("full hand - p2");
-            System.out.println(p2.getFullHand());
-            System.out.println("full hand - p3");
-            System.out.println(p3.getFullHand());
-            //Run round
-            while(jit.getSize() > 0){
-                //Check if round is over based on 2 players being out
-                if(p1.getPlayerActivity() == 0 & p2.getPlayerActivity() == 0 && protect1 == false && protect2 == false){
-                    p3.addLoveletter();
-                    roundDone = true;
-                    break;
-                }
-                if(p2.getPlayerActivity() == 0 & p3.getPlayerActivity() == 0 && protect2 == false && protect3 == false){
-                    p1.addLoveletter();
-                    roundDone = true;
-                    break;
-                }
-                if(p3.getPlayerActivity() == 0 & p1.getPlayerActivity() == 0 && protect1 == false && protect3 == false){
-                    p2.addLoveletter();
-                    roundDone = true;
-                    break;
-                }
-                //player1
-                //undo handmaind protections at the beginning of the turn
-                if(protect1 == true){
-                    p1.setPlayerActivity(1);
-                    protect1 = false;
-                    System.out.println("PLAYER 1 IS UNPROTECTED");
-                }
-                //player1 activity
-                if(p1.getPlayerActivity() == 1){
+            else if(x >= nextButtonSize[0] && y>= nextButtonSize[1] && x<= nextButtonSize[0] + nextButtonSize[2] && y<= nextButtonSize[1] + nextButtonSize[3]){
+                next = true;
+                pressed++;
+                if(next == true && pressed>1){
+                    System.out.println("doing rest of times");
                     //deals
-                    dealDependent(p1, jit);
-                    System.out.println("full hand - p1");
-                    System.out.println(p1.getFullHand());
-                    //draws the dealt cards
-                    g.drawImage(cardFaces[p1.getFirstCard()], playableCardSizes[0][0], playableCardSizes[0][1], playableCardSizes[0][2], playableCardSizes[0][3], null);
-                    g.drawImage(cardFaces[p1.getSecondCard()], playableCardSizes[1][0], playableCardSizes[1][1], playableCardSizes[1][2], playableCardSizes[1][3], null);
-                    //Countess - 8 /* 
-                    if(p1.getFullHand().contains("8") && (p1.getFullHand().contains("7") || p1.getFullHand().contains("5"))){
-                        //replace input with button click or key press
-                        while(p1.getAnyCard(choice) != 8){}
-                        if(p1.getAnyCard(choice) == 8){
-                            p1.discardCard(p1.findCountess());
-                            System.out.println("Countess has been discarded");
-                            g.setColor(Color.WHITE);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        }
+                    cyclePlayers(playerSpots); 
+                    choice = -1;
+                    pChoice = null;
+                    specialChoice = -1;
+                    mainP = playerSpots.get(0);
+                    otherP1 = playerSpots.get(1);
+                    otherP2 = playerSpots.get(2);
+                    if(protect1 == true && mainP == p1){
+                        p1.setPlayerActivity(1);
+                        protect1 = false;
+                        System.out.println("PLAYER 1 IS UNPROTECTED");
+                    } else if(protect2 == true && mainP == p2){
+                        p2.setPlayerActivity(1);
+                        protect2 = false;
+                        System.out.println("PLAYER 2 IS UNPROTECTED");
+                    } else if(protect3 == true && mainP == p3){
+                        p3.setPlayerActivity(1);
+                        protect3 = false;
+                        System.out.println("PLAYER 3 IS UNPROTECTED");
+                    }
+                    if(!mainP.getPlayerLife()){
+                        cyclePlayers(playerSpots); 
+                        System.out.println("Players cycled & skipped");
+                        mainP = playerSpots.get(0);
+                        otherP1 = playerSpots.get(1);
+                        otherP2 = playerSpots.get(2);
+                        dealDependent(mainP, jit);
+                        System.out.println("full hand - mainP");
+                        System.out.println(mainP.getFullHand());
+                        System.out.println(mainP.getPlayerNumber());
+                        //draws the dealt cards
+                        state = 1; 
+                        repaint();
+                        next = false;
+                        System.out.println("next button has been clicked");
                     } else{
-                        while(choice == null){}
-                        int c1 = myObj.nextInt();
-                        //spy
-                        if(p1.getAnyCard(choice) == 0){
-                            //replace action and guess with button click or key press
-                            spy(spy, p1, choice);
-                            g.setColor(Color.WHITE);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        } 
-                        //guard - 1 - deal with after getting everything elses mouse clicks right
-                        /*
-                        else if(p1.getAnyCard(choice) == 1){
-                            //replace action and guess with button click or key press 
-                            //needs a keyboard input - ADD
-                            while(choice == null){}
-                            String action = myObj.next();
-                            int guess = myObj.nextInt();
-                            if(action.equals("p2") && guess == p2.getAvailableCard() && p2.getPlayerActivity() != 0){
-                                p2.setPlayerActivity(0);
-                            } else if (action.equals("p3") && guess == p3.getAvailableCard()&& p3.getPlayerActivity() != 0){
-                                p3.setPlayerActivity(0);
-                            } else{
-                                System.out.println("Guard guess was incorrect " + action + " card was not " + guess);  
-                            }
-                        } 
-                        */
-                        //priest - 2
-                        else if(p1.getAnyCard(choice) == 2){
-                            //replace action and guess with button click or key press
-                            if (p2.getPlayerActivity() == 0 && p3.getPlayerActivity() == 0){
-                                p1.discardCard(choice);
-                            } else{
-                                p1.discardCard(choice);
-                                while(pChoice == null){}
-                                g.drawImage(cardFaces[priest(pChoice, p2, p3).getAvailableCard()], (getWidth()/4+getWidth()/10), stagnantCardSizes[0][1] + getHeight()/30, getWidth()/14+getWidth()/50, stagnantCardSizes[0][3] - getWidth()/30, null);
-                            }
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        }
-                        //baron - 3 - DONE w loop
-                        else if(p1.getAnyCard(choice) == 3){
-                            //replace action with button click or key press
-                            if (p2.getPlayerActivity() == 0 && p3.getPlayerActivity() == 0){
-                                p1.discardCard(choice);
-                            } else{
-                                p1.discardCard(choice);
-                                while(pChoice == null){}
-                                baron(pChoice, p1, p2, p3);
-                            }
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        } 
-                        //handmaid - 4 - DONE w while loop
-                        else if(p1.getAnyCard(choice) == 4){
-                            //replace action and guess with button click or key press
-                            handmaid(p1, protect1,choice);
-                            g.setColor(Color.WHITE);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        } 
-                        //prince - 5 - DONE w loop
-                        else if(p1.getAnyCard(choice) == 5){
-                            //replace action and guess with button click or key press
-                            p1.discardCard(choice);
-                            g.setColor(Color.WHITE);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                            while(pChoice == null){}
-                            prince(p1, p2, p3, pChoice, jit);
-                            g.drawImage(cardFaces[p1.getAvailableCard()], playableCardSizes[p1.getAvailableCardSpot()][0], playableCardSizes[p1.getAvailableCardSpot()][1], playableCardSizes[p1.getAvailableCardSpot()][2], playableCardSizes[p1.getAvailableCardSpot()][3], null);
-                        } 
-                        //chancellor - 6 - DONE w loop
-                        else if(p1.getAnyCard(choice) == 6){
-                            //replace action and guess with button click or key press
-                            int bam = chancellor1(p1, choice, jit);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            g.drawImage(cardFaces[p1.getChancellor()], playableCardSizes[2][0], playableCardSizes[2][1], playableCardSizes[2][2], playableCardSizes[2][3], null);
-                            g.drawImage(cardFaces[p1.getAvailableCard()], playableCardSizes[p1.getAvailableCardSpot()][0], playableCardSizes[p1.getAvailableCardSpot()][1], playableCardSizes[p1.getAvailableCardSpot()][2], playableCardSizes[p1.getAvailableCardSpot()][3], null);
-                            choice = null;
-                            while(choice == null){}
-                            chancellor2(p1, choice, jit, bam);
-                            g.setColor(Color.WHITE);
-                            if(bam == 0){
-                                g.fillRect(playableCardSizes[p1.getBlankCardSpot()][0], playableCardSizes[p1.getBlankCardSpot()][1], playableCardSizes[p1.getBlankCardSpot()][2], playableCardSizes[p1.getBlankCardSpot()][3]);
-                            } else{
-                                g.fillRect(playableCardSizes[2][0], playableCardSizes[2][1], playableCardSizes[2][2], playableCardSizes[2][3]);
-                                g.fillRect(playableCardSizes[p1.getBlankCardSpot()][0], playableCardSizes[p1.getBlankCardSpot()][1], playableCardSizes[p1.getBlankCardSpot()][2], playableCardSizes[p1.getBlankCardSpot()][3]);
-                            }
-                            choice = null;
-                        } 
-                        //king - 7 - done w loop
-                        else if(p1.getAnyCard(choice) == 7){
-                            //replace input with button click or key press
-                            if (p2.getPlayerActivity() == 0 && p3.getPlayerActivity() == 0){
-                                p1.discardCard(choice);
-                            } else{
-                                p1.discardCard(choice);
-                                while(pChoice == null){}
-                                king(p1, p2, p3, pChoice);
-                                g.drawImage(cardFaces[p1.getAvailableCard()], playableCardSizes[p1.getAvailableCardSpot()][0], playableCardSizes[p1.getAvailableCardSpot()][1], playableCardSizes[p1.getAvailableCardSpot()][2], playableCardSizes[p1.getAvailableCardSpot()][3], null);
-                                g.fillRect(playableCardSizes[p1.getBlankCardSpot()][0], playableCardSizes[p1.getBlankCardSpot()][1], playableCardSizes[p1.getBlankCardSpot()][2], playableCardSizes[p1.getBlankCardSpot()][3]);
-                            }
-                            choice = null;
-                        } 
-                        // countess in case
-                        else if(p1.getAnyCard(choice) == 8){
-                            p1.discardCard(choice);
-                            g.fillRect(playableCardSizes[p1.getBlankCardSpot()][0], playableCardSizes[p1.getBlankCardSpot()][1], playableCardSizes[p1.getBlankCardSpot()][2], playableCardSizes[p1.getBlankCardSpot()][3]);
-                            choice = null;
-                        }
-                        //princess - 9 - DOne
-                        else if(p1.getAnyCard(choice) == 9){
-                            //replace input with button click or key press
-                            princess(p1, choice);
-                            g.fillRect(playableCardSizes[p1.getBlankCardSpot()][0], playableCardSizes[p1.getBlankCardSpot()][1], playableCardSizes[p1.getBlankCardSpot()][2], playableCardSizes[p1.getBlankCardSpot()][3]);
-                            g.fillRect(playableCardSizes[p1.getAvailableCardSpot()][0], playableCardSizes[p1.getAvailableCardSpot()][1], playableCardSizes[p1.getAvailableCardSpot()][2], playableCardSizes[p1.getAvailableCardSpot()][3]);
-                            choice = null;
-                        } 
+                        dealDependent(mainP, jit);
+                        System.out.println("full hand - mainP");
+                        System.out.println(mainP.getFullHand());
+                        System.out.println(mainP.getPlayerNumber());
+                        //draws the dealt cards
+                        state = 1; 
+                        repaint();
+                        next = false;
+                        System.out.println("next button has been clicked");
                     }
-                    System.out.println("P1 Acivity:" + p1.getPlayerActivity() + " " + "P2 Activity:" + p2.getPlayerActivity()+ " " + "P3 Activity:" + p3.getPlayerActivity());
-                    //Check if round is over based on 2 players being out
-                    if(p1.getPlayerActivity() == 0 && p2.getPlayerActivity() == 0 && protect1 == false && protect2 == false){
-                        p3.addLoveletter();
-                        roundDone = true;
-                        break;
-                    }
-                    if(p2.getPlayerActivity() == 0 && p3.getPlayerActivity() == 0 && protect2 == false && protect3 == false){
-                        p1.addLoveletter();
-                        roundDone = true;
-                        break;
-                    }
-                    if(p3.getPlayerActivity() == 0 && p1.getPlayerActivity() == 0 && protect3 == false && protect1 == false){
-                        p2.addLoveletter();
-                        roundDone = true;
-                        break;
-                    }
-                    if(jit.getSize() == 0){
-                        break;
-                    }
-                }
-                cyclePlayers(playerSpots);
-                //----------------------------------------------------------------------------
-                //player2
-                //undo handmaind protections at the beginning of the turn
-                if(protect2 == true){
-                    p2.setPlayerActivity(1);
-                    protect2 = false;
-                    System.out.println("PLAYER 2 IS UNPROTECTED");
-                }
-                //player1 activity
-                if(p2.getPlayerActivity() == 1){
-                    //deals
-                    dealDependent(p2, jit);
-                    System.out.println("full hand - p2");
-                    System.out.println(p2.getFullHand());
+                } else{
+                    System.out.println("done first time");
+                    choice = -1;
+                    pChoice = null;
+                    specialChoice = -1;
+                    mainP = playerSpots.get(0);
+                    otherP1 = playerSpots.get(1);
+                    otherP2 = playerSpots.get(2); 
+                    dealDependent(mainP, jit);
+                    System.out.println("full hand - mainP");
+                    System.out.println(mainP.getFullHand());
+                    System.out.println(mainP.getPlayerNumber());
                     //draws the dealt cards
-                    g.drawImage(cardFaces[p2.getFirstCard()], playableCardSizes[0][0], playableCardSizes[0][1], playableCardSizes[0][2], playableCardSizes[0][3], null);
-                    g.drawImage(cardFaces[p2.getSecondCard()], playableCardSizes[1][0], playableCardSizes[1][1], playableCardSizes[1][2], playableCardSizes[1][3], null);
-                    //Countess - 8 /* 
-                    if(p2.getFullHand().contains("8") && (p2.getFullHand().contains("7") || p2.getFullHand().contains("5"))){
-                        //replace input with button click or key press
-                        while(p2.getAnyCard(choice) != 8){}
-                        if(p2.getAnyCard(choice) == 8){
-                            p2.discardCard(p2.findCountess());
-                            System.out.println("Countess has been discarded");
-                            g.setColor(Color.WHITE);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        }
-                    } else{
-                        while(choice == null){}
-                        //spy
-                        if(p2.getAnyCard(choice) == 0){
-                            //replace action and guess with button click or key press
-                            spy(spy, p2, choice);
-                            g.setColor(Color.WHITE);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        } 
-                        //guard - 1 - deal with after getting everything elses mouse clicks right
-                        /*
-                        else if(p1.getAnyCard(choice) == 1){
-                            //replace action and guess with button click or key press 
-                            //needs a keyboard input - ADD
-                            while(choice == null){}
-                            String action = myObj.next();
-                            int guess = myObj.nextInt();
-                            if(action.equals("p2") && guess == p2.getAvailableCard() && p2.getPlayerActivity() != 0){
-                                p2.setPlayerActivity(0);
-                            } else if (action.equals("p3") && guess == p3.getAvailableCard()&& p3.getPlayerActivity() != 0){
-                                p3.setPlayerActivity(0);
-                            } else{
-                                System.out.println("Guard guess was incorrect " + action + " card was not " + guess);  
-                            }
-                        } 
-                        */
-                        //priest - 2
-                        else if(p2.getAnyCard(choice) == 2){
-                            //replace action and guess with button click or key press
-                            if (p1.getPlayerActivity() == 0 && p3.getPlayerActivity() == 0){
-                                p2.discardCard(choice);
-                            } else{
-                                p2.discardCard(choice);
-                                while(pChoice == null){}
-                                g.drawImage(cardFaces[priest(pChoice, p1, p3).getAvailableCard()], (getWidth()/4+getWidth()/10), stagnantCardSizes[0][1] + getHeight()/30, getWidth()/14+getWidth()/50, stagnantCardSizes[0][3] - getWidth()/30, null);
-                            }
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        }
-                        //baron - 3 - DONE w loop
-                        else if(p2.getAnyCard(choice) == 3){
-                            //replace action with button click or key press
-                            if (p1.getPlayerActivity() == 0 && p3.getPlayerActivity() == 0){
-                                p2.discardCard(choice);
-                            } else{
-                                p2.discardCard(choice);
-                                while(pChoice == null){}
-                                baron(pChoice, p2, p1, p3);
-                            }
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        } 
-                        //handmaid - 4 - DONE w while loop
-                        else if(p2.getAnyCard(choice) == 4){
-                            //replace action and guess with button click or key press
-                            handmaid(p2, protect1,choice);
-                            g.setColor(Color.WHITE);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        } 
-                        //prince - 5 - DONE w loop
-                        else if(p2.getAnyCard(choice) == 5){
-                            //replace action and guess with button click or key press
-                            p2.discardCard(choice);
-                            g.setColor(Color.WHITE);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                            while(pChoice == null){}
-                            prince(p2, p1, p3, pChoice, jit);
-                            g.drawImage(cardFaces[p2.getAvailableCard()], playableCardSizes[p2.getAvailableCardSpot()][0], playableCardSizes[p2.getAvailableCardSpot()][1], playableCardSizes[p2.getAvailableCardSpot()][2], playableCardSizes[p2.getAvailableCardSpot()][3], null);
-                        } 
-                        //chancellor - 6 - DONE w loop
-                        else if(p2.getAnyCard(choice) == 6){
-                            //replace action and guess with button click or key press
-                            int bam = chancellor1(p2, choice, jit);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            g.drawImage(cardFaces[p2.getChancellor()], playableCardSizes[2][0], playableCardSizes[2][1], playableCardSizes[2][2], playableCardSizes[2][3], null);
-                            g.drawImage(cardFaces[p2.getAvailableCard()], playableCardSizes[p2.getAvailableCardSpot()][0], playableCardSizes[p2.getAvailableCardSpot()][1], playableCardSizes[p2.getAvailableCardSpot()][2], playableCardSizes[p2.getAvailableCardSpot()][3], null);
-                            choice = null;
-                            while(choice == null){}
-                            chancellor2(p2, choice, jit, bam);
-                            g.setColor(Color.WHITE);
-                            if(bam == 0){
-                                g.fillRect(playableCardSizes[p2.getBlankCardSpot()][0], playableCardSizes[p2.getBlankCardSpot()][1], playableCardSizes[p2.getBlankCardSpot()][2], playableCardSizes[p2.getBlankCardSpot()][3]);
-                            } else{
-                                g.fillRect(playableCardSizes[2][0], playableCardSizes[2][1], playableCardSizes[2][2], playableCardSizes[2][3]);
-                                g.fillRect(playableCardSizes[p2.getBlankCardSpot()][0], playableCardSizes[p2.getBlankCardSpot()][1], playableCardSizes[p2.getBlankCardSpot()][2], playableCardSizes[p2.getBlankCardSpot()][3]);
-                            }
-                            choice = null;
-                        } 
-                        //king - 7 - done w loop
-                        else if(p2.getAnyCard(choice) == 7){
-                            //replace input with button click or key press
-                            if (p1.getPlayerActivity() == 0 && p3.getPlayerActivity() == 0){
-                                p2.discardCard(choice);
-                            } else{
-                                p2.discardCard(choice);
-                                while(pChoice == null){}
-                                king(p2, p1, p3, pChoice);
-                                g.drawImage(cardFaces[p2.getAvailableCard()], playableCardSizes[p2.getAvailableCardSpot()][0], playableCardSizes[p2.getAvailableCardSpot()][1], playableCardSizes[p2.getAvailableCardSpot()][2], playableCardSizes[p2.getAvailableCardSpot()][3], null);
-                                g.fillRect(playableCardSizes[p2.getBlankCardSpot()][0], playableCardSizes[p2.getBlankCardSpot()][1], playableCardSizes[p2.getBlankCardSpot()][2], playableCardSizes[p2.getBlankCardSpot()][3]);
-                            }
-                            choice = null;
-                        } 
-                        // countess in case
-                        else if(p2.getAnyCard(choice) == 8){
-                            p2.discardCard(choice);
-                            g.fillRect(playableCardSizes[p2.getBlankCardSpot()][0], playableCardSizes[p2.getBlankCardSpot()][1], playableCardSizes[p2.getBlankCardSpot()][2], playableCardSizes[p2.getBlankCardSpot()][3]);
-                            choice = null;
-                        }
-                        //princess - 9 - DOne
-                        else if(p2.getAnyCard(choice) == 9){
-                            //replace input with button click or key press
-                            princess(p2, choice);
-                            g.fillRect(playableCardSizes[p1.getBlankCardSpot()][0], playableCardSizes[p1.getBlankCardSpot()][1], playableCardSizes[p1.getBlankCardSpot()][2], playableCardSizes[p1.getBlankCardSpot()][3]);
-                            g.fillRect(playableCardSizes[p2.getAvailableCardSpot()][0], playableCardSizes[p2.getAvailableCardSpot()][1], playableCardSizes[p2.getAvailableCardSpot()][2], playableCardSizes[p2.getAvailableCardSpot()][3]);
-                            choice = null;
-                        } 
-                    }
-                    System.out.println("P1 Acivity:" + p1.getPlayerActivity() + " " + "P2 Activity:" + p2.getPlayerActivity()+ " " + "P3 Activity:" + p3.getPlayerActivity());
-                    //Check if round is over based on 2 players being out
-                    if(p1.getPlayerActivity() == 0 && p2.getPlayerActivity() == 0 && protect1 == false && protect2 == false){
-                        p3.addLoveletter();
-                        roundDone = true;
-                        break;
-                    }
-                    if(p2.getPlayerActivity() == 0 && p3.getPlayerActivity() == 0 && protect2 == false && protect3 == false){
-                        p1.addLoveletter();
-                        roundDone = true;
-                        break;
-                    }
-                    if(p3.getPlayerActivity() == 0 && p1.getPlayerActivity() == 0 && protect3 == false && protect1 == false){
-                        p2.addLoveletter();
-                        roundDone = true;
-                        break;
-                    }
-                    if(jit.getSize() == 0){
-                        break;
-                    }
+                    state = 1; 
+                    repaint();
+                    next = false;
+                    System.out.println("next button has been clicked");
                 }
-                cyclePlayers(playerSpots);
-                //player3
-                //undo handmaind protections at the beginning of the turn
-                if(protect3 == true){
-                    p3.setPlayerActivity(1);
-                    protect3 = false;
-                    System.out.println("PLAYER 3 IS UNPROTECTED");
-                }
-                //player1 activity
-                if(p3.getPlayerActivity() == 1){
-                    //deals
-                    dealDependent(p3, jit);
-                    System.out.println("full hand - p3");
-                    System.out.println(p3.getFullHand());
-                    //draws the dealt cards
-                    g.drawImage(cardFaces[p3.getFirstCard()], playableCardSizes[0][0], playableCardSizes[0][1], playableCardSizes[0][2], playableCardSizes[0][3], null);
-                    g.drawImage(cardFaces[p3.getSecondCard()], playableCardSizes[1][0], playableCardSizes[1][1], playableCardSizes[1][2], playableCardSizes[1][3], null);
-                    //Countess - 8 /* 
-                    if(p3.getFullHand().contains("8") && (p3.getFullHand().contains("7") || p3.getFullHand().contains("5"))){
-                        //replace input with button click or key press
-                        while(p3.getAnyCard(choice) != 8){}
-                        if(p3.getAnyCard(choice) == 8){
-                            p3.discardCard(p3.findCountess());
-                            System.out.println("Countess has been discarded");
-                            g.setColor(Color.WHITE);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        }
-                    } else{
-                        while(choice == null){}
-                        //spy
-                        if(p3.getAnyCard(choice) == 0){
-                            //replace action and guess with button click or key press
-                            spy(spy, p3, choice);
-                            g.setColor(Color.WHITE);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        } 
-                        //guard - 1 - deal with after getting everything elses mouse clicks right
-                        /*
-                        else if(p1.getAnyCard(choice) == 1){
-                            //replace action and guess with button click or key press 
-                            //needs a keyboard input - ADD
-                            while(choice == null){}
-                            String action = myObj.next();
-                            int guess = myObj.nextInt();
-                            if(action.equals("p2") && guess == p2.getAvailableCard() && p2.getPlayerActivity() != 0){
-                                p2.setPlayerActivity(0);
-                            } else if (action.equals("p3") && guess == p3.getAvailableCard()&& p3.getPlayerActivity() != 0){
-                                p3.setPlayerActivity(0);
-                            } else{
-                                System.out.println("Guard guess was incorrect " + action + " card was not " + guess);  
-                            }
-                        } 
-                        */
-                        //priest - 2
-                        else if(p3.getAnyCard(choice) == 2){
-                            //replace action and guess with button click or key press
-                            if (p2.getPlayerActivity() == 0 && p1.getPlayerActivity() == 0){
-                                p3.discardCard(choice);
-                            } else{
-                                p3.discardCard(choice);
-                                while(pChoice == null){}
-                                g.drawImage(cardFaces[priest(pChoice, p2, p1).getAvailableCard()], (getWidth()/4+getWidth()/10), stagnantCardSizes[0][1] + getHeight()/30, getWidth()/14+getWidth()/50, stagnantCardSizes[0][3] - getWidth()/30, null);
-                            }
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        }
-                        //baron - 3 - DONE w loop
-                        else if(p3.getAnyCard(choice) == 3){
-                            //replace action with button click or key press
-                            if (p2.getPlayerActivity() == 0 && p1.getPlayerActivity() == 0){
-                                p3.discardCard(choice);
-                            } else{
-                                p3.discardCard(choice);
-                                while(pChoice == null){}
-                                baron(pChoice, p3, p2, p1);
-                            }
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        } 
-                        //handmaid - 4 - DONE w while loop
-                        else if(p3.getAnyCard(choice) == 4){
-                            //replace action and guess with button click or key press
-                            handmaid(p3, protect1,choice);
-                            g.setColor(Color.WHITE);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                        } 
-                        //prince - 5 - DONE w loop
-                        else if(p3.getAnyCard(choice) == 5){
-                            //replace action and guess with button click or key press
-                            p3.discardCard(choice);
-                            g.setColor(Color.WHITE);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            choice = null;
-                            while(pChoice == null){}
-                            prince(p3, p2, p1, pChoice, jit);
-                            g.drawImage(cardFaces[p3.getAvailableCard()], playableCardSizes[p3.getAvailableCardSpot()][0], playableCardSizes[p3.getAvailableCardSpot()][1], playableCardSizes[p3.getAvailableCardSpot()][2], playableCardSizes[p3.getAvailableCardSpot()][3], null);
-                        } 
-                        //chancellor - 6 - DONE w loop
-                        else if(p3.getAnyCard(choice) == 6){
-                            //replace action and guess with button click or key press
-                            int bam = chancellor1(p3, choice, jit);
-                            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
-                            g.drawImage(cardFaces[p3.getChancellor()], playableCardSizes[2][0], playableCardSizes[2][1], playableCardSizes[2][2], playableCardSizes[2][3], null);
-                            g.drawImage(cardFaces[p3.getAvailableCard()], playableCardSizes[p3.getAvailableCardSpot()][0], playableCardSizes[p3.getAvailableCardSpot()][1], playableCardSizes[p3.getAvailableCardSpot()][2], playableCardSizes[p3.getAvailableCardSpot()][3], null);
-                            choice = null;
-                            while(choice == null){}
-                            chancellor2(p3, choice, jit, bam);
-                            g.setColor(Color.WHITE);
-                            if(bam == 0){
-                                g.fillRect(playableCardSizes[p3.getBlankCardSpot()][0], playableCardSizes[p3.getBlankCardSpot()][1], playableCardSizes[p3.getBlankCardSpot()][2], playableCardSizes[p3.getBlankCardSpot()][3]);
-                            } else{
-                                g.fillRect(playableCardSizes[2][0], playableCardSizes[2][1], playableCardSizes[2][2], playableCardSizes[2][3]);
-                                g.fillRect(playableCardSizes[p3.getBlankCardSpot()][0], playableCardSizes[p3.getBlankCardSpot()][1], playableCardSizes[p3.getBlankCardSpot()][2], playableCardSizes[p3.getBlankCardSpot()][3]);
-                            }
-                            choice = null;
-                        } 
-                        //king - 7 - done w loop
-                        else if(p3.getAnyCard(choice) == 7){
-                            //replace input with button click or key press
-                            if (p2.getPlayerActivity() == 0 && p1.getPlayerActivity() == 0){
-                                p3.discardCard(choice);
-                            } else{
-                                p3.discardCard(choice);
-                                while(pChoice == null){}
-                                king(p3, p2, p1, pChoice);
-                                g.drawImage(cardFaces[p3.getAvailableCard()], playableCardSizes[p3.getAvailableCardSpot()][0], playableCardSizes[p3.getAvailableCardSpot()][1], playableCardSizes[p3.getAvailableCardSpot()][2], playableCardSizes[p3.getAvailableCardSpot()][3], null);
-                                g.fillRect(playableCardSizes[p3.getBlankCardSpot()][0], playableCardSizes[p3.getBlankCardSpot()][1], playableCardSizes[p3.getBlankCardSpot()][2], playableCardSizes[p3.getBlankCardSpot()][3]);
-                            }
-                            choice = null;
-                        } 
-                        // countess in case
-                        else if(p3.getAnyCard(choice) == 8){
-                            p3.discardCard(choice);
-                            g.fillRect(playableCardSizes[p3.getBlankCardSpot()][0], playableCardSizes[p3.getBlankCardSpot()][1], playableCardSizes[p3.getBlankCardSpot()][2], playableCardSizes[p3.getBlankCardSpot()][3]);
-                            choice = null;
-                        }
-                        //princess - 9 - DOne
-                        else if(p3.getAnyCard(choice) == 9){
-                            //replace input with button click or key press
-                            princess(p3, choice);
-                            g.fillRect(playableCardSizes[p3.getBlankCardSpot()][0], playableCardSizes[p3.getBlankCardSpot()][1], playableCardSizes[p3.getBlankCardSpot()][2], playableCardSizes[p3.getBlankCardSpot()][3]);
-                            g.fillRect(playableCardSizes[p3.getAvailableCardSpot()][0], playableCardSizes[p3.getAvailableCardSpot()][1], playableCardSizes[p3.getAvailableCardSpot()][2], playableCardSizes[p3.getAvailableCardSpot()][3]);
-                            choice = null;
-                        } 
-                    }
-                    cyclePlayers(playerSpots);
-                    System.out.println("P1 Acivity:" + p1.getPlayerActivity() + " " + "P2 Activity:" + p2.getPlayerActivity()+ " " + "P3 Activity:" + p3.getPlayerActivity());
-                    //Check if round is over based on 2 players being out
-                    if(p1.getPlayerActivity() == 0 && p2.getPlayerActivity() == 0 && protect1 == false && protect2 == false){
-                        p3.addLoveletter();
-                        roundDone = true;
-                        break;
-                    }
-                    if(p2.getPlayerActivity() == 0 && p3.getPlayerActivity() == 0 && protect2 == false && protect3 == false){
-                        p1.addLoveletter();
-                        roundDone = true;
-                        break;
-                    }
-                    if(p3.getPlayerActivity() == 0 && p1.getPlayerActivity() == 0 && protect3 == false && protect1 == false){
-                        p2.addLoveletter();
-                        roundDone = true;
-                        break;
-                    }
-                    if(jit.getSize() == 0){
-                        break;
-                    }
-                }
+                
             }
-            System.out.println("remaining deck"); 
-            printDeck(jit);
-            //Check who gets loveletter based on 2 players being out
-            if(roundDone == false){
-                if((spy.size() > 0 && spy.size() <2) || (spy.size()>0 && (spy.get(0) == spy.get(1)))){
-                    spy.get(0).addLoveletter();
-                }
-            else if(p1.getPlayerActivity() == 0 & p2.getPlayerActivity() == 0){
+           
+        }
+        //new round starter
+        if((jit.getSize() == 0 || roundDone) && !loveLetterEnd(p1, p2, p3)){
+            System.out.println("Player1 Loveletters:" + p1.getLoveLetters() + " Player2 LoveLetters:" + p2.getLoveLetters() + " Player3 LoveLetters:" + p3.getLoveLetters()); 
+            if( !roundDone && ((spy.size() > 0 && spy.size() <2) || (spy.size()>0 && (spy.get(0) == spy.get(1))))){
+                spy.get(0).addLoveletter();
+            }
+            else if(mustPlay(p1, p2)){
                 p3.addLoveletter();
             }
-            else if(p2.getPlayerActivity() == 0 & p3.getPlayerActivity() == 0){
+            else if(mustPlay(p3, p2)){
                 p1.addLoveletter();
             }
-            else if(p3.getPlayerActivity() == 0 & p1.getPlayerActivity() == 0){
+            else if(mustPlay(p1, p3)){
                 p2.addLoveletter();
             } 
             //Check who gets loveletter based on power comparison
@@ -757,17 +931,388 @@ public class LoveLetterPanel extends JPanel implements MouseListener{
                     } else{
                         p2.addLoveletter();
                     }
-                } else {
+                } else if(pb == pc){
                     if(p2.getDiscardedStrength() > p3.getDiscardedStrength()){
                         p2.addLoveletter();
                     } else{
                         p3.addLoveletter();
                     }
+                } else if(pa == pc){
+                    if(p1.getDiscardedStrength() > p3.getDiscardedStrength()){
+                        p1.addLoveletter();
+                    } else{
+                        p3.addLoveletter();
+                    }
+                } else{}
+            }
+            roundDone = false;
+            //new round set up
+            jit.makeDeck();
+            jit.shuffle();
+            jit.burnCard();
+            printDeck(jit);
+            p1.refreshPlayer();
+            p2.refreshPlayer();
+            p3.refreshPlayer();
+            initialdeal(p1, p2, p3, jit);
+            System.out.println("initial deal done");
+            System.out.println("full hand - p1");
+            System.out.println(p1.getFullHand());
+            System.out.println("full hand - p2");
+            System.out.println(p2.getFullHand());
+            System.out.println("full hand - p3");
+            System.out.println(p3.getFullHand());
+            choice = -1;
+            state = 15; 
+            repaint();
+            pressed = 0;
+        }
+        //game over
+        if(loveLetterEnd(p1, p2, p3)){
+            Player dub = findWinner(playerSpots);
+            winner = playerIcons[dub.getPlayerNumber()];
+            state = 0;
+            repaint();
+            System.out.println("Player1 Loveletters:" + p1.getLoveLetters() + " Player2 LoveLetters:" + p2.getLoveLetters() + " Player3 LoveLetters:" + p3.getLoveLetters()); 
+        }
+        //checks for roundDone
+        if(!p1.getPlayerLife() && !p2.getPlayerLife()){
+            p3.addLoveletter();
+            roundDone = true;
+            System.out.println("round done for p3");
+        }
+        if(!p2.getPlayerLife() && !p3.getPlayerLife()){
+            p1.addLoveletter();
+            roundDone = true;
+            System.out.println("round done for p1");
+        }
+        if(!p1.getPlayerLife() && !p3.getPlayerLife()){
+            p2.addLoveletter();
+            roundDone = true;
+            System.out.println("round done for p2");
+
+        }
+        //
+        
+       
+}
+
+    
+    public void addNotify(){
+        super.addNotify();
+        requestFocus();
+    }
+    public void paint(Graphics g){   
+        //playerIcon switches based on whose playing
+        BufferedImage activePlayerIcon = playerIcons[mainP.getPlayerNumber()];
+        BufferedImage idlePlayerIcon1 = playerIcons[otherP1.getPlayerNumber()];
+        BufferedImage idlePlayerIcon2 = playerIcons[otherP2.getPlayerNumber()];
+        int tokenCount = mainP.getLoveLetters();
+        //specific sizes for player icons - 0:as if the one playing & 1:left sideline & 2:right sideline
+        int[][] playerIconSizes = {{getWidth()/2 - getWidth()/46, (getHeight()/2 + getHeight()/12), getWidth()/23, getHeight()/15},
+                                   {getWidth()/15, getHeight()/15, getWidth()/6, getHeight()/4},
+                                   {(getWidth() - getWidth()/9 - getWidth()/8), getHeight()/15, getWidth()/6, getHeight()/4}};
+        //specific sizes for stagnant card images - 0:Deck card sizes & 1:left card sizes & 2:right card sizes                        
+        int[][] stagnantCardSizes = {{(getWidth()/2)-(getWidth()/7+getWidth()/50)/2, (getHeight()/2) - (getHeight()/5+getHeight()/15)/2 - (getHeight()/15), getWidth()/7+getWidth()/50, getHeight()/5+getHeight()/15},
+                                     {getWidth()/15, (getHeight()/6+getHeight()/6), getWidth()/7+getWidth()/50, getHeight()/5+getHeight()/15},
+                                     {(getWidth() - getWidth()/9 - getWidth()/8), (getHeight()/6+getHeight()/6), getWidth()/7+getWidth()/50, getHeight()/5+getHeight()/15}};
+        //specific sizes for playable card images - 0:left card sizes & 1:middle card sizes & 2:right card sizes                           
+        int[][] playableCardSizes = {{getWidth()/2-getWidth()/5-getWidth()/82, getHeight()-getHeight()/3,getWidth()/8+getWidth()/50, getHeight()/5+getHeight()/8},
+                                     {getWidth()/2 - getWidth()/16, getHeight()-getHeight()/3, getWidth()/8+getWidth()/50, getHeight()/5+getHeight()/8},
+                                     {getWidth()-getWidth()/6-getWidth()/5-getWidth()/21, getHeight()-getHeight()/3,getWidth()/8+getWidth()/50, getHeight()/5+getHeight()/8}};
+        //specific sizes for the discard piles -0:as if the one playing & 1:left sideline & 2:right sideline
+        int[][] discardPileSizes = {{getWidth()-getWidth()/4, getHeight() - (getHeight()/4 + getHeight()/9), getWidth()/17, getHeight()/13+getHeight()/15},
+                                     {getWidth()/4, (getHeight()/4 - getHeight()/15), getWidth()/17, getHeight()/13+getHeight()/15},
+                                     {getWidth() - (getWidth()/4 + getWidth()/17), (getHeight()/4 - getHeight()/15), getWidth()/17, getHeight()/13+getHeight()/15}};
+        int[] nextButtonSize = {getWidth() - (getWidth()/4+getWidth()/6), (getHeight()/2) - (getHeight()/5+getHeight()/15)/2 - (getHeight()/15) + getHeight()/12, getWidth()/15, getHeight()/10};
+
+        for(int i = 0; i<otherP1.getDiscardPile().size(); i++){
+            g.drawImage(cardFaces[otherP1.getDiscardPile().get(i)], discardPileSizes[1][0], discardPileSizes[1][1] + 20*i, discardPileSizes[1][2], discardPileSizes[1][3], null);
+        }
+        for(int i = 0; i<otherP2.getDiscardPile().size(); i++){
+            System.out.println(otherP2.getDiscardPile().get(i));
+            g.drawImage(cardFaces[otherP2.getDiscardPile().get(i)], discardPileSizes[2][0], discardPileSizes[2][1] + 20*i, discardPileSizes[2][2], discardPileSizes[2][3], null);
+        }
+        //reference card
+        g.drawImage(ReferenceCard, (getWidth()/2)-(getWidth()/16), getHeight()/90, getWidth()/8, getHeight()/5+getHeight()/15, null);
+        //stagnant cards - 1 = left, 0 = main, 2 = right
+        if(otherP1.getPlayerLife()){
+            g.drawImage(CardBack, stagnantCardSizes[1][0], stagnantCardSizes[1][1], stagnantCardSizes[1][2], stagnantCardSizes[1][3], null);
+        }
+        if(otherP2.getPlayerLife()){
+            g.drawImage(CardBack, stagnantCardSizes[2][0], stagnantCardSizes[2][1], stagnantCardSizes[2][2], stagnantCardSizes[2][3], null);
+        }
+        
+        //player icons
+        g.drawImage(activePlayerIcon, playerIconSizes[0][0], playerIconSizes[0][1], playerIconSizes[0][2], playerIconSizes[0][3], null);
+        g.drawImage(idlePlayerIcon1, playerIconSizes[1][0], playerIconSizes[1][1], playerIconSizes[1][2], playerIconSizes[1][3], null);
+        g.drawImage(idlePlayerIcon2, playerIconSizes[2][0], playerIconSizes[2][1], playerIconSizes[2][2], playerIconSizes[2][3], null);
+
+
+        //LoveLetter Spot
+        g.setFont(new Font("Serif", Font.ITALIC, 20));
+        g.drawString("Token Count: " + tokenCount, getWidth()/5 - getWidth()/80, getHeight()-(getHeight()/6 + getHeight()/15));
+        g.drawImage(Token, getWidth()/5, getHeight() -getHeight()/5, getWidth()/16, getHeight()/10, null);
+        
+        //image SPOTS
+        g.setColor(Color.yellow);
+        g.drawRect(playableCardSizes[0][0], playableCardSizes[0][1], playableCardSizes[0][2], playableCardSizes[0][3]);
+        g.setColor(Color.blue);
+        g.drawRect(playableCardSizes[1][0], playableCardSizes[1][1], playableCardSizes[1][2], playableCardSizes[1][3]);
+        g.setColor(Color.red);
+        g.drawRect(playableCardSizes[2][0], playableCardSizes[2][1], playableCardSizes[2][2], playableCardSizes[2][3]);
+        //next button
+        g.setColor(Color.red);
+        g.fillRect(nextButtonSize[0], nextButtonSize[1], nextButtonSize[2], nextButtonSize[3]);
+        //rule text
+        g.setColor(Color.red);
+        g.setFont(new Font("Serif", Font.PLAIN, 30));
+        g.drawString("NEXT", nextButtonSize[0]+getWidth()/150, nextButtonSize[1]-getHeight()/50);
+        g.setFont(new Font("Serif", Font.PLAIN, 20));
+        g.drawString("Click The NEXT Button To Start the ", getWidth()-getWidth()/3-getWidth()/10, getHeight()/10);
+        g.drawString("\n Game or Continue To The Next ", getWidth()-getWidth()/3-getWidth()/10, getHeight()/10+30);
+        g.drawString("\n Player or Begin A New Round", getWidth()-getWidth()/3-getWidth()/10, getHeight()/10+60);
+        
+        //Main Discard Pile outline
+        g.setColor(Color.BLACK);
+        g.drawRect(getWidth()-getWidth()/4 - getWidth()/60, getHeight()-getHeight()/3 - getHeight()/30, getWidth()/10, getHeight()/2);
+
+        //game over
+        if(state == 0){
+            g.setColor(Color.BLUE);
+            g.setFont(new Font("Serif", Font.PLAIN, 50));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            g.setColor(Color.WHITE);
+            g.drawString("GAME OVER - CONGRATULATIONS: ", getWidth()/4 - getWidth()/27, getHeight()/4 + getHeight()/9);
+            g.drawImage(winner, getWidth()/2 - getWidth()/12, getHeight()/2, playerIconSizes[1][2], playerIconSizes[1][3], null);
+        }
+        //draws full hand and discard pile
+        if(state == 1 && mainP != null){
+            g.setFont(new Font("Serif", Font.PLAIN, 13));
+            g.drawImage(CardBack, stagnantCardSizes[0][0], stagnantCardSizes[0][1], stagnantCardSizes[0][2], stagnantCardSizes[0][3], null);
+            g.setColor(Color.red);
+            g.drawString("BURNT CARD", (getWidth()/2)-(getWidth()/16) -getWidth()/12 + getWidth()/300, getHeight()/30);
+            g.drawImage(CardBack, (getWidth()/2)-(getWidth()/16) - getWidth()/8, getHeight()/30, getWidth()/8 + getWidth()/50, getHeight()/5+getHeight()/30, null);
+            g.setColor(Color.black);
+            g.fillRect(getWidth()-getWidth()/4 - getWidth()/60, getHeight()-getHeight()/3 - getHeight()/30, getWidth()/10, getHeight()/2);
+            g.drawImage(cardFaces[mainP.getFirstCard()], playableCardSizes[0][0], playableCardSizes[0][1], playableCardSizes[0][2], playableCardSizes[0][3], null);
+            g.drawImage(cardFaces[mainP.getSecondCard()], playableCardSizes[1][0], playableCardSizes[1][1], playableCardSizes[1][2], playableCardSizes[1][3], null);
+            if(mainP.getDiscardPile().size() != 0){
+                for(int i = 0; i<mainP.getDiscardPile().size(); i++){
+                    g.drawImage(cardFaces[mainP.getDiscardPile().get(i)], discardPileSizes[0][0], discardPileSizes[0][1] + 20*i, discardPileSizes[0][2], discardPileSizes[0][3], null);
                 }
             }
+            System.out.println("discard pile drawn - in paint of: " + mainP.getPlayerNumber());
+            System.out.println("original satisifed");
+            state = 15;
         }
-    }
-        System.out.println("Player1 Loveletters:" + p1.getLoveLetters() + " Player2 LoveLetters:" + p2.getLoveLetters() + " Player3 LoveLetters:" + p3.getLoveLetters()); 
+        if(state == 2){
+            g.setColor(Color.GREEN);
+            g.setFont(new Font("Serif", Font.PLAIN, 30));
+            g.drawString("GUESS WAS", (getWidth()/4) + getWidth()/14, getHeight()/2 - getHeight()/5 - getHeight()/100);
+            g.drawString("CORRECT", (getWidth()/4 + getWidth()/90) + getWidth()/14, getHeight()/2 + 30- getHeight()/5 - getHeight()/100);
+
+            g.setFont(new Font("Serif", Font.PLAIN, 13));
+            g.setColor(Color.red);
+            g.drawString("BURNT CARD", (getWidth()/2)-(getWidth()/16) -getWidth()/12 + getWidth()/300, getHeight()/30);
+            g.drawImage(CardBack, (getWidth()/2)-(getWidth()/16) - getWidth()/8, getHeight()/30, getWidth()/8 + getWidth()/50, getHeight()/5+getHeight()/30, null);
+            g.drawImage(CardBack, stagnantCardSizes[0][0], stagnantCardSizes[0][1], stagnantCardSizes[0][2], stagnantCardSizes[0][3], null);
+            g.setColor(Color.red);
+            g.fillRect(getWidth()-getWidth()/4 - getWidth()/60, getHeight()-getHeight()/3 - getHeight()/30, getWidth()/10, getHeight()/2);
+            g.drawImage(cardFaces[pChoice.getAvailableCard()], (getWidth()/4+getWidth()/10), stagnantCardSizes[0][1] + getHeight()/30, getWidth()/14+getWidth()/50, stagnantCardSizes[0][3] - getWidth()/30, null);
+            g.setColor(Color.BLACK);
+            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
+            g.drawImage(cardFaces[mainP.getAvailableCard()], playableCardSizes[mainP.getAvailableCardSpot()][0], playableCardSizes[mainP.getAvailableCardSpot()][1], playableCardSizes[mainP.getAvailableCardSpot()][2], playableCardSizes[mainP.getAvailableCardSpot()][3], null);
+            if(mainP.getDiscardPile().size() != 0){
+                for(int i = 0; i<mainP.getDiscardPile().size(); i++){
+                    g.drawImage(cardFaces[mainP.getDiscardPile().get(i)], discardPileSizes[0][0], discardPileSizes[0][1] + 20*i, discardPileSizes[0][2], discardPileSizes[0][3], null);
+                }
+            }
+            state = 15;
+        }
+        if(state == 3){
+            g.setColor(Color.RED);
+            g.setFont(new Font("Serif", Font.PLAIN, 30));
+            g.drawString("GUESS WAS", (getWidth()/4) + getWidth()/14, getHeight()/2 - getHeight()/5 - getHeight()/100);
+            g.drawString("INCORRECT", (getWidth()/4 + getWidth()/90) + getWidth()/16, getHeight()/2 + 30- getHeight()/5 - getHeight()/100);
+            g.setFont(new Font("Serif", Font.PLAIN, 13));
+            g.setColor(Color.red);
+            g.drawString("BURNT CARD", (getWidth()/2)-(getWidth()/16) -getWidth()/12 + getWidth()/300, getHeight()/30);
+            g.drawImage(CardBack, (getWidth()/2)-(getWidth()/16) - getWidth()/8, getHeight()/30, getWidth()/8 + getWidth()/50, getHeight()/5+getHeight()/30, null);
+            g.drawImage(CardBack, stagnantCardSizes[0][0], stagnantCardSizes[0][1], stagnantCardSizes[0][2], stagnantCardSizes[0][3], null);
+            g.setColor(Color.red);
+            g.fillRect(getWidth()-getWidth()/4 - getWidth()/60, getHeight()-getHeight()/3 - getHeight()/30, getWidth()/10, getHeight()/2);
+            g.setColor(Color.BLACK);
+            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
+            g.drawImage(cardFaces[mainP.getAvailableCard()], playableCardSizes[mainP.getAvailableCardSpot()][0], playableCardSizes[mainP.getAvailableCardSpot()][1], playableCardSizes[mainP.getAvailableCardSpot()][2], playableCardSizes[mainP.getAvailableCardSpot()][3], null);
+            if(mainP.getDiscardPile().size() != 0){
+                for(int i = 0; i<mainP.getDiscardPile().size(); i++){
+                    g.drawImage(cardFaces[mainP.getDiscardPile().get(i)], discardPileSizes[0][0], discardPileSizes[0][1] + 20*i, discardPileSizes[0][2], discardPileSizes[0][3], null);
+                }
+            }
+            System.out.println("empties card spot based on discard - in paint");
+            state = 15;
+        }
+
+        //fills blank spot for chancellor
+        if(state == 5 && mainP != null){
+            g.setFont(new Font("Serif", Font.PLAIN, 13));
+            g.drawImage(CardBack, stagnantCardSizes[0][0], stagnantCardSizes[0][1], stagnantCardSizes[0][2], stagnantCardSizes[0][3], null);
+            g.setColor(Color.red);
+            g.drawString("BURNT CARD", (getWidth()/2)-(getWidth()/16) -getWidth()/12 + getWidth()/300, getHeight()/30);
+            g.drawImage(CardBack, (getWidth()/2)-(getWidth()/16) - getWidth()/8, getHeight()/30, getWidth()/8 + getWidth()/50, getHeight()/5+getHeight()/30, null);
+            g.fillRect(playableCardSizes[mainP.getBlankCardSpot()][0], playableCardSizes[mainP.getBlankCardSpot()][1], playableCardSizes[mainP.getBlankCardSpot()][2], playableCardSizes[mainP.getBlankCardSpot()][3]);
+            g.drawImage(cardFaces[mainP.getAvailableCard()], playableCardSizes[mainP.getAvailableCardSpot()][0], playableCardSizes[mainP.getAvailableCardSpot()][1], playableCardSizes[mainP.getAvailableCardSpot()][2], playableCardSizes[mainP.getAvailableCardSpot()][3], null);
+            System.out.println("blanks out empty spot cus chancellor - in paint");
+            if(mainP.getDiscardPile().size() != 0){
+                for(int i = 0; i<mainP.getDiscardPile().size(); i++){
+                    g.drawImage(cardFaces[mainP.getDiscardPile().get(i)], discardPileSizes[0][0], discardPileSizes[0][1] + 20*i, discardPileSizes[0][2], discardPileSizes[0][3], null);
+                }
+            }
+            state = 15;
+        }
+        //empties chancellor spot
+        if(state == 6 && mainP != null){
+            g.setFont(new Font("Serif", Font.PLAIN, 13));
+            g.drawImage(CardBack, stagnantCardSizes[0][0], stagnantCardSizes[0][1], stagnantCardSizes[0][2], stagnantCardSizes[0][3], null);
+            g.setColor(Color.red);
+            g.drawString("BURNT CARD", (getWidth()/2)-(getWidth()/16) -getWidth()/12 + getWidth()/300, getHeight()/30);
+            g.drawImage(CardBack, (getWidth()/2)-(getWidth()/16) - getWidth()/8, getHeight()/30, getWidth()/8 + getWidth()/50, getHeight()/5+getHeight()/30, null);
+            g.fillRect(playableCardSizes[mainP.getBlankCardSpot()][0], playableCardSizes[mainP.getBlankCardSpot()][1], playableCardSizes[mainP.getBlankCardSpot()][2], playableCardSizes[mainP.getBlankCardSpot()][3]);
+            g.fillRect(playableCardSizes[2][0], playableCardSizes[2][1], playableCardSizes[2][2], playableCardSizes[2][3]);
+            g.drawImage(cardFaces[mainP.getAvailableCard()], playableCardSizes[mainP.getAvailableCardSpot()][0], playableCardSizes[mainP.getAvailableCardSpot()][1], playableCardSizes[mainP.getAvailableCardSpot()][2], playableCardSizes[mainP.getAvailableCardSpot()][3], null);
+            System.out.println("blanks out chancellor spot - in paint");
+            if(mainP.getDiscardPile().size() != 0){
+                for(int i = 0; i<mainP.getDiscardPile().size(); i++){
+                    g.drawImage(cardFaces[mainP.getDiscardPile().get(i)], discardPileSizes[0][0], discardPileSizes[0][1] + 20*i, discardPileSizes[0][2], discardPileSizes[0][3], null);
+                }
+            }
+            state = 15;
+        }
+        //clears the entire hand for the princess play
+        if(state == 7 && mainP != null){
+            g.setFont(new Font("Serif", Font.PLAIN, 13));
+            g.drawImage(CardBack, stagnantCardSizes[0][0], stagnantCardSizes[0][1], stagnantCardSizes[0][2], stagnantCardSizes[0][3], null);
+            g.setColor(Color.red);
+            g.drawString("BURNT CARD", (getWidth()/2)-(getWidth()/16) -getWidth()/12 + getWidth()/300, getHeight()/30);
+            g.drawImage(CardBack, (getWidth()/2)-(getWidth()/16) - getWidth()/8, getHeight()/30, getWidth()/8 + getWidth()/50, getHeight()/5+getHeight()/30, null);
+            g.setColor(Color.red);
+            g.fillRect(getWidth()-getWidth()/4 - getWidth()/60, getHeight()-getHeight()/3 - getHeight()/30, getWidth()/10, getHeight()/2);
+            g.fillRect(playableCardSizes[0][0], playableCardSizes[0][1], playableCardSizes[0][2], playableCardSizes[0][3]);
+            g.fillRect(playableCardSizes[1][0], playableCardSizes[1][1], playableCardSizes[1][2], playableCardSizes[1][3]);
+            System.out.println("princess played - in paint");
+            if(mainP.getDiscardPile().size() != 0){
+                for(int i = 0; i<mainP.getDiscardPile().size(); i++){
+                    g.drawImage(cardFaces[mainP.getDiscardPile().get(i)], discardPileSizes[0][0], discardPileSizes[0][1] + 20*i, discardPileSizes[0][2], discardPileSizes[0][3], null);
+                }
+            }
+            
+            state = 15;
+        }
+        //discard cand show pile
+        if(state == 10){
+            g.setFont(new Font("Serif", Font.PLAIN, 13));
+            g.setColor(Color.red);
+            g.drawString("BURNT CARD", (getWidth()/2)-(getWidth()/16) -getWidth()/12 + getWidth()/300, getHeight()/30);
+            g.drawImage(CardBack, (getWidth()/2)-(getWidth()/16) - getWidth()/8, getHeight()/30, getWidth()/8 + getWidth()/50, getHeight()/5+getHeight()/30, null);
+            g.drawImage(CardBack, stagnantCardSizes[0][0], stagnantCardSizes[0][1], stagnantCardSizes[0][2], stagnantCardSizes[0][3], null);
+            g.setColor(Color.red);
+            g.fillRect(getWidth()-getWidth()/4 - getWidth()/60, getHeight()-getHeight()/3 - getHeight()/30, getWidth()/10, getHeight()/2);
+            g.setColor(Color.BLACK);
+            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
+            g.drawImage(cardFaces[mainP.getAvailableCard()], playableCardSizes[mainP.getAvailableCardSpot()][0], playableCardSizes[mainP.getAvailableCardSpot()][1], playableCardSizes[mainP.getAvailableCardSpot()][2], playableCardSizes[mainP.getAvailableCardSpot()][3], null);
+            if(mainP.getDiscardPile().size() != 0){
+                for(int i = 0; i<mainP.getDiscardPile().size(); i++){
+                    g.drawImage(cardFaces[mainP.getDiscardPile().get(i)], discardPileSizes[0][0], discardPileSizes[0][1] + 20*i, discardPileSizes[0][2], discardPileSizes[0][3], null);
+                }
+            }
+            System.out.println("empties card spot based on discard - in paint");
+            state = 15;
+        }
+        if(state == 11){
+            g.setFont(new Font("Serif", Font.PLAIN, 13));
+            g.drawImage(CardBack, stagnantCardSizes[0][0], stagnantCardSizes[0][1], stagnantCardSizes[0][2], stagnantCardSizes[0][3], null);
+            g.setColor(Color.red);
+            g.drawString("BURNT CARD", (getWidth()/2)-(getWidth()/16) -getWidth()/12 + getWidth()/300, getHeight()/30);
+            g.drawImage(CardBack, (getWidth()/2)-(getWidth()/16) - getWidth()/8, getHeight()/30, getWidth()/8 + getWidth()/50, getHeight()/5+getHeight()/30, null);
+            g.setColor(Color.red);
+            g.fillRect(getWidth()-getWidth()/4 - getWidth()/60, getHeight()-getHeight()/3 - getHeight()/30, getWidth()/10, getHeight()/2);
+            g.setColor(Color.BLACK);
+            g.fillRect(playableCardSizes[specialChoice][0], playableCardSizes[specialChoice][1], playableCardSizes[specialChoice][2], playableCardSizes[specialChoice][3]);
+            g.drawImage(cardFaces[mainP.getFirstCard()], playableCardSizes[0][0], playableCardSizes[0][1], playableCardSizes[0][2], playableCardSizes[0][3], null);
+            g.drawImage(cardFaces[mainP.getSecondCard()], playableCardSizes[1][0], playableCardSizes[1][1], playableCardSizes[1][2], playableCardSizes[1][3], null);
+            System.out.println("DISCARD PILE SIZE: " + mainP.getDiscardPile().size());
+            if(mainP.getDiscardPile().size() != 0){
+                for(int i = 0; i<mainP.getDiscardPile().size(); i++){
+                    System.out.println(mainP.getDiscardPile().get(i));
+                    g.drawImage(cardFaces[mainP.getDiscardPile().get(i)], discardPileSizes[0][0], discardPileSizes[0][1] + 20*i, discardPileSizes[0][2], discardPileSizes[0][3], null);
+                }
+            }
+            System.out.println("empties card spot based on discard - in paint");
+            state = 15;
+        }
+        if(state == 12){
+            g.setFont(new Font("Serif", Font.PLAIN, 13));
+            g.drawImage(CardBack, stagnantCardSizes[0][0], stagnantCardSizes[0][1], stagnantCardSizes[0][2], stagnantCardSizes[0][3], null);
+            g.setColor(Color.red);
+            g.drawString("BURNT CARD", (getWidth()/2)-(getWidth()/16) -getWidth()/12 + getWidth()/300, getHeight()/30);
+            g.drawImage(CardBack, (getWidth()/2)-(getWidth()/16) - getWidth()/8, getHeight()/30, getWidth()/8 + getWidth()/50, getHeight()/5+getHeight()/30, null);
+            g.setColor(Color.red);
+            g.fillRect(getWidth()-getWidth()/4 - getWidth()/60, getHeight()-getHeight()/3 - getHeight()/30, getWidth()/10, getHeight()/2);
+            g.setColor(Color.BLACK);
+            g.fillRect(playableCardSizes[specialChoice][0], playableCardSizes[specialChoice][1], playableCardSizes[specialChoice][2], playableCardSizes[specialChoice][3]);
+            g.drawImage(cardFaces[mainP.getChancellor()], playableCardSizes[2][0], playableCardSizes[2][1], playableCardSizes[2][2], playableCardSizes[2][3], null);
+            g.drawImage(cardFaces[mainP.getFirstCard()], playableCardSizes[0][0], playableCardSizes[0][1], playableCardSizes[0][2], playableCardSizes[0][3], null);
+            g.drawImage(cardFaces[mainP.getSecondCard()], playableCardSizes[1][0], playableCardSizes[1][1], playableCardSizes[1][2], playableCardSizes[1][3], null);
+            if(mainP.getDiscardPile().size() > 0){
+                for(int i = 0; i<mainP.getDiscardPile().size(); i++){
+                    System.out.println(mainP.getDiscardPile().get(i));
+                    g.drawImage(cardFaces[mainP.getDiscardPile().get(i)], discardPileSizes[0][0], discardPileSizes[0][1] + 20*i, discardPileSizes[0][2], discardPileSizes[0][3], null);
+                }
+            }
+            System.out.println("DISCARD PILE SIZE: " + mainP.getDiscardPile().size());
+            System.out.println("empties card spot based on discard - in paint");
+            state = 15;
+        }
+        if(state == 13){
+            g.setFont(new Font("Serif", Font.PLAIN, 13));
+            g.setColor(Color.red);
+            g.drawString("BURNT CARD", (getWidth()/2)-(getWidth()/16) -getWidth()/12 + getWidth()/300, getHeight()/30);
+            g.drawImage(CardBack, (getWidth()/2)-(getWidth()/16) - getWidth()/8, getHeight()/30, getWidth()/8 + getWidth()/50, getHeight()/5+getHeight()/30, null);
+            g.drawImage(CardBack, stagnantCardSizes[0][0], stagnantCardSizes[0][1], stagnantCardSizes[0][2], stagnantCardSizes[0][3], null);
+            g.setColor(Color.red);
+            g.fillRect(getWidth()-getWidth()/4 - getWidth()/60, getHeight()-getHeight()/3 - getHeight()/30, getWidth()/10, getHeight()/2);
+            g.drawImage(cardFaces[pChoice.getAvailableCard()], (getWidth()/4+getWidth()/10), stagnantCardSizes[0][1] + getHeight()/30, getWidth()/14+getWidth()/50, stagnantCardSizes[0][3] - getWidth()/30, null);
+            g.setColor(Color.BLACK);
+            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
+            g.drawImage(cardFaces[mainP.getAvailableCard()], playableCardSizes[mainP.getAvailableCardSpot()][0], playableCardSizes[mainP.getAvailableCardSpot()][1], playableCardSizes[mainP.getAvailableCardSpot()][2], playableCardSizes[mainP.getAvailableCardSpot()][3], null);
+            if(mainP.getDiscardPile().size() != 0){
+                for(int i = 0; i<mainP.getDiscardPile().size(); i++){
+                    g.drawImage(cardFaces[mainP.getDiscardPile().get(i)], discardPileSizes[0][0], discardPileSizes[0][1] + 20*i, discardPileSizes[0][2], discardPileSizes[0][3], null);
+                }
+            }
+            state = 15;
+        }
+        if(state == 14){
+            g.setFont(new Font("Serif", Font.PLAIN, 13));
+            g.setColor(Color.red);
+            g.drawString("BURNT CARD", (getWidth()/2)-(getWidth()/16) -getWidth()/12 + getWidth()/300, getHeight()/30);
+            g.drawImage(CardBack, (getWidth()/2)-(getWidth()/16) - getWidth()/8, getHeight()/30, getWidth()/8 + getWidth()/50, getHeight()/5+getHeight()/30, null);
+            g.drawImage(CardBack, stagnantCardSizes[0][0], stagnantCardSizes[0][1], stagnantCardSizes[0][2], stagnantCardSizes[0][3], null);
+            g.setColor(Color.red);
+            g.fillRect(getWidth()-getWidth()/4 - getWidth()/60, getHeight()-getHeight()/3 - getHeight()/30, getWidth()/10, getHeight()/2);
+            g.drawImage(cardFaces[mainP.getAvailableCard()], playableCardSizes[mainP.getAvailableCardSpot()][0], playableCardSizes[mainP.getAvailableCardSpot()][1], playableCardSizes[mainP.getAvailableCardSpot()][2], playableCardSizes[mainP.getAvailableCardSpot()][3], null);
+            System.out.println(mainP.getAvailableCard());
+            g.setColor(Color.BLACK);
+            g.fillRect(playableCardSizes[choice][0], playableCardSizes[choice][1], playableCardSizes[choice][2], playableCardSizes[choice][3]);
+            if(mainP.getDiscardPile().size() != 0){
+                for(int i = 0; i<mainP.getDiscardPile().size(); i++){
+                    g.drawImage(cardFaces[mainP.getDiscardPile().get(i)], discardPileSizes[0][0], discardPileSizes[0][1] + 20*i, discardPileSizes[0][2], discardPileSizes[0][3], null);
+                }
+            }
+            state = 15;
+        }
+        
     }
     public static void initialdeal(Player a, Player b, Player c, Deck d){
                 dealCard(a, d, 0);
@@ -778,11 +1323,12 @@ public class LoveLetterPanel extends JPanel implements MouseListener{
         p.addCard(position,d.removeCard());
     }
     public static void dealDependent(Player p, Deck d){
-        if(p.getFullHand().substring(0,1).equals("n")){
+        if(p.getFirstCard() == -1){
             dealCard(p, d, 0);
-        } else{
+        } else if(p.getSecondCard() == -1){
             dealCard(p, d, 1);
-        }
+        } else{}
+        
     }
     public static void printDeck(Deck d){
         for(int i = 0; i<d.getSize(); i++){
@@ -790,20 +1336,20 @@ public class LoveLetterPanel extends JPanel implements MouseListener{
         }
         System.out.println();
     }
-    public static void cyclePlayers(ArrayList<Integer> a){
-        a.add(0, a.remove(a.size() - 1));
+    public static void cyclePlayers(ArrayList<Player> a){
+        a.add(a.size()-1, a.remove(0));
     }
     public static void spy(ArrayList<Player> s, Player a, Integer choice){
         s.add(a);
         System.out.println("SPY HAS BEEN ADDED");
         a.discardCard(choice);
     }
-    public static Player priest(Integer pChoice, Player a, Player b){
-        if(pChoice == a.getPlayerNumber() && a.getPlayerActivity() != 0){
-            return a;
-        } else {
-            return b;
-        } 
+    public static boolean checks(Player a){
+        if(a.getPlayerActivity() != 0){
+            return true;
+        } else{
+            return false;
+        }
     }
     public static void handmaid(Player a, boolean b, Integer choice){
         a.setPlayerActivity(0);
@@ -811,41 +1357,28 @@ public class LoveLetterPanel extends JPanel implements MouseListener{
         System.out.println("PLAYER 1 IS PROTECTED");
         a.discardCard(choice);
     }
-    public static void prince(Player a, Player b, Player c, Integer pChoice, Deck d){
-        if(b.getPlayerActivity() != 0 && b.getPlayerNumber() == pChoice){
-            b.discardCard(b.getAvailableCardSpot());
-            dealCard(b, d, b.getAvailableCardSpot());
-        } else if (c.getPlayerActivity() != 0 && c.getPlayerNumber() == pChoice){ 
-            c.discardCard(c.getAvailableCardSpot());
-            dealCard(c, d, c.getAvailableCardSpot());
-        } else{
-            a.discardCard(a.getAvailableCardSpot());
-            dealCard(a, d, a.getAvailableCardSpot());
-        }
+    public static void prince(Player pChoice, Deck d){
+        //forces to replace card
+        int s = pChoice.getAvailableCardSpot();
+        pChoice.discardCard(s);
+        dealCard(pChoice, d, s);
         //System.out.println("PLAYER 1 CARD REDEALT - NOW IT IS" + a.getAvailableCard());
     }
-    public static void baron(Integer pChoice, Player a, Player b, Player c){
-        int pow1;
-        int pow2;
+    public static void baron(Player a, Player pChoice){
+        int pow1 = a.getAvailableCard();
+        int pow2 = pChoice.getAvailableCard();
         pow1 = a.getAvailableCard();
-        if(a.getPlayerActivity() != 0 && a.getPlayerNumber() == pChoice){
-            pow2 = b.getAvailableCard();
-            if(pow1>pow2){
-                b.setPlayerActivity(0);
-            } else if(pow2>pow1){
-                a.setPlayerActivity(0);
-            }
+        if(pow1>pow2){
+            pChoice.setPlayerDead();
+            pChoice.setPlayerActivity(0);
+        } else if(pow2>pow1){
+            a.setPlayerDead();
+            a.setPlayerActivity(0);
         } else{
-            pow2 = c.getAvailableCard();
-            if(pow1>pow2){
-                c.setPlayerActivity(0);
-            } else if(pow2>pow1){
-                a.setPlayerActivity(0);
-            }
+            System.out.println("nums r equal");
         }
     }
     public static Integer chancellor1(Player a, Integer choice, Deck d){
-        a.discardCard(choice);
         if(d.getSize() >2){
             dealCard(a, d, a.getBlankCardSpot());
             dealCard(a, d, 5);
@@ -896,22 +1429,40 @@ public class LoveLetterPanel extends JPanel implements MouseListener{
         System.out.print("After whole chancellor ting is done: ");
         printDeck(d);
     }
-    public static void king(Player a, Player b, Player c, Integer pChoice){
-        int temp;
-        if (b.getPlayerActivity() != 0 && b.getPlayerNumber() == pChoice){
-            temp = a.getAvailableCard();
-            a.setSpecific(a.getAvailableCardSpot(), b.getAvailableCard());
-            b.setSpecific(b.getAvailableCardSpot(), temp);
-        } else{
-            temp = a.getAvailableCard();
-            a.setSpecific(a.getAvailableCardSpot(), c.getAvailableCard());
-            c.setSpecific(c.getAvailableCardSpot(), temp);
-        }
+    public static void king(Player a, Player pChoice){
+        Integer temp = a.getAvailableCard();
+        a.setSpecific(a.getAvailableCardSpot(), pChoice.getAvailableCard());
+        pChoice.setSpecific(pChoice.getAvailableCardSpot(), temp);
     }
     public static void princess(Player a, Integer choice){
+        a.setPlayerDead();
         a.setPlayerActivity(0);
         System.out.println("PLAYER 1 IS OUT OF THE ROUND");
-        a.discardCard(choice);
     }
+    public static boolean loveLetterEnd(Player a, Player b, Player c){
+        return a.getLoveLetters()==5 && b.getLoveLetters()==5 && c.getLoveLetters()==5;
+    }
+    public static boolean mustPlay(Player b, Player c){
+        return (b.getPlayerActivity() == 0 && c.getPlayerActivity() == 0);
+    }
+    public static boolean checkLife(Player a, Player b, Player c, boolean p1, boolean p2, boolean p3){
+        return (a.getPlayerActivity() == 1 || p1 == true) && (b.getPlayerActivity() == 1 || p2 == true) && (c.getPlayerActivity() == 1 || p3 == true);
+    }
+    public static void guard(Player a){
+        a.setPlayerActivity(0);
+        a.setPlayerDead();
+    }
+    public static Player findWinner(ArrayList<Player> a){
+        if(a.get(0).getLoveLetters() == 5){
+            return a.get(0);
+        }
+        if(a.get(1).getLoveLetters() == 5){
+            return a.get(1);
+        }
+        else{
+            return a.get(2);
+        } 
+    }
+
 }
 
